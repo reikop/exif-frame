@@ -1,0 +1,41 @@
+import { useTranslation } from 'react-i18next';
+import themes from '../../themes';
+import Preview from '../theme/components/preview';
+import RerenderButton from '../theme/components/rerender.button';
+import { useStore } from '../../store';
+
+const ThemeCenter = () => {
+  const { t } = useTranslation();
+  const { selectedThemeName, setSelectedThemeName, darkMode } = useStore();
+
+  const activeChip = darkMode ? 'bg-white text-black' : 'bg-black text-white';
+  const idleChip = darkMode ? 'bg-neutral-800 text-neutral-200 hover:bg-neutral-700' : 'bg-white text-gray-700 hover:bg-gray-100 border border-gray-200';
+
+  return (
+    <div className="max-w-5xl mx-auto">
+      <h1 className="text-3xl font-bold mb-6">{t('root.themes')}</h1>
+
+      <div className="flex justify-center">
+        <Preview className="w-full max-w-2xl mt-2" />
+      </div>
+      <div className="flex justify-center mt-4">
+        <RerenderButton />
+      </div>
+
+      <h2 className="text-base font-semibold mt-8 mb-3 opacity-80">{t('root.themes.list')}</h2>
+      <div className="flex flex-wrap gap-2">
+        {themes.map((theme) => (
+          <button
+            key={theme.name}
+            onClick={() => setSelectedThemeName(theme.name)}
+            className={`px-3 py-1.5 rounded-full text-sm font-medium transition-colors ${selectedThemeName === theme.name ? activeChip : idleChip}`}
+          >
+            {theme.name}
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+};
+
+export default ThemeCenter;

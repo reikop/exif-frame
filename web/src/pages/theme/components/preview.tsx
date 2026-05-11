@@ -6,7 +6,9 @@ import { ThemeOptionInput, getConverter } from '../types/theme-option';
 import Customize from '../database/customize';
 import free from '../../../core/drawing/free';
 
-const Preview = () => {
+type Props = { className?: string };
+
+const Preview = ({ className = 'w-4/6 md:w-2/6 mx-auto mt-4' }: Props) => {
   const store = useStore();
   const { selectedThemeName, rerenderOptions, tabIndex, darkMode } = useStore();
 
@@ -51,7 +53,7 @@ const Preview = () => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedThemeName, rerenderOptions, tabIndex]);
 
-  return <canvas id="preview" className="w-4/6 md:w-2/6 mx-auto mt-4" style={{ maxHeight: '1000px', maxWidth: '1000px', backgroundColor: darkMode ? '#000000' : '#ffffff' }} />;
+  return <canvas id="preview" className={className} style={{ maxHeight: '1000px', maxWidth: '1000px', backgroundColor: darkMode ? '#000000' : '#ffffff' }} />;
 };
 
 export default Preview;

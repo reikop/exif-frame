@@ -8,23 +8,29 @@ import FramePage from './pages/convert/page';
 import SponsorsPage from './pages/sponsors';
 import LabPage from './pages/lab/page';
 import MetadataPage from './pages/metadata/page';
+import DesktopShell from './pages/desktop/shell';
+import { useIsDesktop } from './hooks/use-is-desktop';
+
+const Root = () => {
+  const { tabIndex } = useStore();
+  const isDesktop = useIsDesktop();
+
+  if (isDesktop) return <DesktopShell />;
+
+  return (
+    <>
+      {tabIndex === 0 && <FramePage />}
+      {tabIndex === 1 && <ThemeSettingsPage />}
+      {tabIndex === 2 && <ExportSettingsPage />}
+    </>
+  );
+};
 
 const Router = () => {
-  const { tabIndex } = useStore();
-
   return (
     <BrowserRouter>
       <Routes>
-        <Route
-          path="/"
-          element={
-            <>
-              {tabIndex === 0 && <FramePage />}
-              {tabIndex === 1 && <ThemeSettingsPage />}
-              {tabIndex === 2 && <ExportSettingsPage />}
-            </>
-          }
-        />
+        <Route path="/" element={<Root />} />
         <Route path="/privacy_policy.html" element={<PrivacyPolicyPage />} />
         <Route path="/term_and_conditions.html" element={<TermAndConditionsPage />} />
         <Route path="/sponsors" element={<SponsorsPage />} />
