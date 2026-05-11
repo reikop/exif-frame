@@ -15,7 +15,7 @@ import { TIP_FUNC, TIP_OPTIONS } from './13_TIP';
 import { POSTER_FUNC, POSTER_OPTIONS } from './14_POSTER';
 import { CINEMASCOPE_FUNC, CINEMASCOPE_OPTIONS } from './15_CINEMASCOPE';
 import { SIMPLE_FUNC, SIMPLE_OPTIONS } from './16_SIMPLE';
-import { DATABACK_FUNC, DATABACK_OPTIONS } from './17_DATABACK';
+import { DATABACK_FUNC, DATABACK_OPTIONS, DATABACK_PRESETS } from './17_DATABACK';
 
 type AcceptInputType = string | number | boolean;
 
@@ -60,7 +60,7 @@ const themes = [
   { name: 'Poster', func: POSTER_FUNC, options: POSTER_OPTIONS },
   { name: 'Tip', func: TIP_FUNC, options: TIP_OPTIONS },
   { name: 'Cinema Scope', func: CINEMASCOPE_FUNC, options: CINEMASCOPE_OPTIONS },
-  { name: 'Data Back', func: DATABACK_FUNC, options: DATABACK_OPTIONS },
+  { name: 'Data Back', func: DATABACK_FUNC, options: DATABACK_OPTIONS, presets: DATABACK_PRESETS },
 ];
 
 export default themes;

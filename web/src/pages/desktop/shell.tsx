@@ -9,6 +9,7 @@ import SettingsCenter from './settings-center';
 import ThemeOptionsPanel from './theme-options-panel';
 import OverrideMetadataPopup from '../convert/components/override-metadata.popup';
 import AddPhotoErrorDialog from '../convert/components/add-photo-error.dialog';
+import PreviewFullscreen from '../theme/components/preview-fullscreen';
 import LanguagePopover from '../setting/components/language.popover';
 import RatioPopover from '../setting/components/ratio.popover';
 import DateNotationPopover from '../setting/components/date-notation.popover';
@@ -72,6 +73,7 @@ const DesktopShell = () => {
       <DateNotationPopover />
       <OverrideMetadataPopover />
       <Loading />
+      <PreviewFullscreen />
     </div>
   );
 };

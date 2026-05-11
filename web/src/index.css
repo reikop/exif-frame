@@ -2,6 +2,12 @@
 @tailwind components;
 @tailwind utilities;
 
+@font-face {
+  font-family: 'LCDDot';
+  src: url('/fonts/LCDDot.ttf') format('truetype');
+  font-display: block;
+}
+
 .barlow-thin {
   font-family: "Barlow", sans-serif;
   font-weight: 100;

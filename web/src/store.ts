@@ -122,6 +122,9 @@ type Store = {
 
   notCroppedMode: boolean;
   setNotCroppedMode: (notCroppedMode: boolean) => void;
+
+  previewFullscreen: boolean;
+  setPreviewFullscreen: (previewFullscreen: boolean) => void;
 };
 
 const useStore = create<Store>((set) => ({
@@ -346,6 +349,9 @@ const useStore = create<Store>((set) => ({
       localStorage.setItem('notCroppedMode', notCroppedMode.toString());
       return { notCroppedMode };
     }),
+
+  previewFullscreen: false,
+  setPreviewFullscreen: (previewFullscreen: boolean) => set({ previewFullscreen }),
 }));
 
 // Set the theme on page load

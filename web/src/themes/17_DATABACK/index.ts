@@ -204,4 +204,43 @@ const DATABACK_FUNC: ThemeFunc = (photo: Photo, input: ThemeOptionInput, store: 
   return canvas;
 };
 
-export { DATABACK_FUNC, DATABACK_OPTIONS };
+const DATABACK_PRESETS = [
+  {
+    name: '#1',
+    values: {
+      DATE_FORMAT: "'YY M DD",
+      POSITION: 'bottom-right',
+      TEXT_COLOR: '#FF5722',
+      TEXT_ALPHA: 0.85,
+      FONT_FAMILY: 'DSEG7Classic-Italic',
+      FONT_SIZE: 75,
+      SPACE_GAP: 70,
+      OFFSET_X: 450,
+      OFFSET_Y: 330,
+      GLOW: true,
+      GLOW_COLOR: '#FF5722',
+      GLOW_RADIUS: 70,
+      BLUR: 5,
+    },
+  },
+  {
+    name: '#2 Dot Matrix',
+    values: {
+      DATE_FORMAT: "DD M 'YY",
+      POSITION: 'bottom-right',
+      TEXT_COLOR: '#ffc72e',
+      TEXT_ALPHA: 0.15,
+      FONT_FAMILY: 'LCDDot',
+      FONT_SIZE: 190,
+      SPACE_GAP: 40,
+      OFFSET_X: 450,
+      OFFSET_Y: 250,
+      GLOW: true,
+      GLOW_COLOR: '#FF4500',
+      GLOW_RADIUS: 5,
+      BLUR: 5,
+    },
+  },
+];
+
+export { DATABACK_FUNC, DATABACK_OPTIONS, DATABACK_PRESETS };

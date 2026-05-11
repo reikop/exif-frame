@@ -6,19 +6,20 @@ import { ThemeOptionInput, getConverter } from '../types/theme-option';
 import Customize from '../database/customize';
 import free from '../../../core/drawing/free';
 
-type Props = { className?: string };
+type Props = { className?: string; id?: string; fullscreen?: boolean };
 
-const Preview = ({ className = 'mt-4' }: Props) => {
+const Preview = ({ className = 'mt-4', id = 'preview', fullscreen = false }: Props) => {
   const store = useStore();
-  const { selectedThemeName, rerenderOptions, tabIndex, darkMode } = useStore();
+  const { selectedThemeName, rerenderOptions, tabIndex, darkMode, previewFullscreen } = useStore();
 
   useEffect(() => {
-    const preview = document.getElementById('preview') as HTMLCanvasElement;
+    const preview = document.getElementById(id) as HTMLCanvasElement | null;
+    if (!preview) return;
     preview.width = 0;
     preview.height = 0;
 
     if (store.photos.length === 0) return;
-    if (tabIndex !== 1) return;
+    if (tabIndex !== 1 && !fullscreen) return;
 
     const input: ThemeOptionInput = new Map<string, string | number | boolean>();
     const theme = themes.find((theme) => theme.name === selectedThemeName);
@@ -37,15 +38,15 @@ const Preview = ({ className = 'mt-4' }: Props) => {
       const ctx = preview.getContext('2d')!;
       const ratio = canvas.width / canvas.height;
       if (canvas.width > canvas.height) {
-        preview.width = 1000;
-        preview.height = 1000 / ratio;
+        preview.width = fullscreen ? 2000 : 1000;
+        preview.height = preview.width / ratio;
       } else {
-        preview.height = 1000;
-        preview.width = 1000 * ratio;
+        preview.height = fullscreen ? 2000 : 1000;
+        preview.width = preview.height * ratio;
       }
       const parentWidth = preview.parentElement?.clientWidth ?? 800;
-      const maxDisplayWidth = Math.min(parentWidth, 800);
-      const maxDisplayHeight = window.innerHeight * 0.7;
+      const maxDisplayWidth = fullscreen ? window.innerWidth * 0.95 : Math.min(parentWidth, 800);
+      const maxDisplayHeight = fullscreen ? window.innerHeight * 0.92 : window.innerHeight * 0.7;
       let displayWidth: number;
       let displayHeight: number;
       if (preview.width / maxDisplayWidth > preview.height / maxDisplayHeight) {
@@ -65,11 +66,11 @@ const Preview = ({ className = 'mt-4' }: Props) => {
       free(canvas);
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedThemeName, rerenderOptions, tabIndex]);
+  }, [selectedThemeName, rerenderOptions, tabIndex, previewFullscreen]);
 
   return (
     <canvas
-      id="preview"
+      id={id}
       className={className}
       style={{
         display: 'block',

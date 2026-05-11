@@ -22,9 +22,15 @@ enum Font {
   NewXDigital = 'new-x-digital',
   NewXDigitalHollow = 'new-x-digital-hollow',
   NewXDigitalLight = 'new-x-digital-light',
+  LcdDot = 'LCDDot',
 }
 
 // Load all fonts from the fonts public/fonts folder
-Object.values(Font).forEach((font) => new FontFace(font, `url(fonts/${font}.ttf)`).load().then((loadedFont) => document.fonts.add(loadedFont)));
+Object.values(Font).forEach((font) =>
+  new FontFace(font, `url(/fonts/${font}.ttf)`)
+    .load()
+    .then((loadedFont) => document.fonts.add(loadedFont))
+    .catch((err) => console.error(`Failed to load font "${font}":`, err))
+);
 
 export default Font;
