@@ -8,7 +8,7 @@ import free from '../../../core/drawing/free';
 
 type Props = { className?: string };
 
-const Preview = ({ className = 'w-4/6 md:w-2/6 mx-auto mt-4' }: Props) => {
+const Preview = ({ className = 'mt-4' }: Props) => {
   const store = useStore();
   const { selectedThemeName, rerenderOptions, tabIndex, darkMode } = useStore();
 
@@ -36,13 +36,27 @@ const Preview = ({ className = 'w-4/6 md:w-2/6 mx-auto mt-4' }: Props) => {
     render(func!, store.photos[0], input, store).then((canvas) => {
       const ctx = preview.getContext('2d')!;
       const ratio = canvas.width / canvas.height;
-      if (preview.width > preview.height) {
+      if (canvas.width > canvas.height) {
         preview.width = 1000;
         preview.height = 1000 / ratio;
       } else {
         preview.height = 1000;
         preview.width = 1000 * ratio;
       }
+      const parentWidth = preview.parentElement?.clientWidth ?? 800;
+      const maxDisplayWidth = Math.min(parentWidth, 800);
+      const maxDisplayHeight = window.innerHeight * 0.7;
+      let displayWidth: number;
+      let displayHeight: number;
+      if (preview.width / maxDisplayWidth > preview.height / maxDisplayHeight) {
+        displayWidth = maxDisplayWidth;
+        displayHeight = displayWidth / ratio;
+      } else {
+        displayHeight = maxDisplayHeight;
+        displayWidth = displayHeight * ratio;
+      }
+      preview.style.width = `${displayWidth}px`;
+      preview.style.height = `${displayHeight}px`;
       ctx.clearRect(0, 0, preview.width, preview.height);
       ctx.fillStyle = darkMode ? '#000000' : '#ffffff';
       ctx.fillRect(0, 0, preview.width, preview.height);
@@ -53,7 +67,17 @@ const Preview = ({ className = 'w-4/6 md:w-2/6 mx-auto mt-4' }: Props) => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedThemeName, rerenderOptions, tabIndex]);
 
-  return <canvas id="preview" className={className} style={{ maxHeight: '1000px', maxWidth: '1000px', backgroundColor: darkMode ? '#000000' : '#ffffff' }} />;
+  return (
+    <canvas
+      id="preview"
+      className={className}
+      style={{
+        display: 'block',
+        margin: '0 auto',
+        backgroundColor: darkMode ? '#000000' : '#ffffff',
+      }}
+    />
+  );
 };
 
 export default Preview;

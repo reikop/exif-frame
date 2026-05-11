@@ -16,7 +16,7 @@ const ThemeCenter = () => {
       <h1 className="text-3xl font-bold mb-6">{t('root.themes')}</h1>
 
       <div className="flex justify-center">
-        <Preview className="w-full max-w-2xl mt-2" />
+        <Preview className="mt-2" />
       </div>
       <div className="flex justify-center mt-4">
         <RerenderButton />
