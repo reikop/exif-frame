@@ -7,6 +7,8 @@ import { ThemeOption, getConverter } from '../types/theme-option';
 const ThemeOptionListInput = (props: ThemeOption) => {
   const { selectedThemeName, rerenderOptions, darkMode, setRerenderOptions } = useStore();
   const [value, setValue] = useState(Customize.get(selectedThemeName, props.id, getConverter(props.type)) ?? props.default);
+  const dependencyValue = props.visibleWhen ? Customize.get(selectedThemeName, props.visibleWhen.id, getConverter(typeof props.visibleWhen.default)) ?? props.visibleWhen.default : undefined;
+  const isVisible = !props.visibleWhen || dependencyValue === props.visibleWhen.value;
 
   useEffect(() => {
     setValue(Customize.get(selectedThemeName, props.id, getConverter(props.type)) ?? props.default);
@@ -21,6 +23,9 @@ const ThemeOptionListInput = (props: ThemeOption) => {
 
   const isModified = value !== props.default;
   const resetTitle = `Reset to default (${props.default})`;
+
+  if (!isVisible) return null;
+
   const ResetButton = () => (
     <button
       type="button"

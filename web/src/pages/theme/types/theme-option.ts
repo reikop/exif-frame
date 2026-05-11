@@ -32,9 +32,16 @@ type ColorOption = {
   default: string;
 };
 
+type VisibleWhen = {
+  id: string;
+  value: string | number | boolean;
+  default: string | number | boolean;
+};
+
 type ThemeOption = (StringOption | NumberOption | BooleanOption | SelectOption | RangeSliderOption | ColorOption) & {
   id: string;
   description?: string;
+  visibleWhen?: VisibleWhen;
 };
 
 type ThemeOptionInput = Map<string, string | number | boolean>;

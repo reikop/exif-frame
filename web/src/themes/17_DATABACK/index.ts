@@ -18,6 +18,7 @@ const DATABACK_OPTIONS: ThemeOption[] = [
     ],
     default: "'YY M DD",
     description: 'date stamp format',
+    visibleWhen: { id: 'SHOW_DATE', value: true, default: true },
   },
   {
     id: 'POSITION',
@@ -46,13 +47,38 @@ const DATABACK_OPTIONS: ThemeOption[] = [
   { id: 'OFFSET_X', type: 'range-slider', default: 450, min: 0, max: 1000, step: 5, description: 'horizontal distance from edge (px)' },
   { id: 'OFFSET_Y', type: 'range-slider', default: 330, min: 0, max: 1000, step: 5, description: 'vertical distance from edge (px)' },
   { id: 'GLOW', type: 'boolean', default: true, description: 'soft glow like LED stamp' },
-  { id: 'GLOW_COLOR', type: 'color', default: '#FF1600', description: 'red halation color' },
-  { id: 'GLOW_RADIUS', type: 'range-slider', default: 64, min: 0, max: 160, step: 0.5, description: 'glow blur radius (px)' },
-  { id: 'GLOW_INTENSITY', type: 'range-slider', default: 2.35, min: 0, max: 4, step: 0.05, description: 'bloom strength' },
+  { id: 'GLOW_COLOR', type: 'color', default: '#FF1600', description: 'red halation color', visibleWhen: { id: 'GLOW', value: true, default: true } },
+  { id: 'GLOW_RADIUS', type: 'range-slider', default: 64, min: 0, max: 160, step: 0.5, description: 'glow blur radius (px)', visibleWhen: { id: 'GLOW', value: true, default: true } },
+  { id: 'GLOW_INTENSITY', type: 'range-slider', default: 2.35, min: 0, max: 4, step: 0.05, description: 'bloom strength', visibleWhen: { id: 'GLOW', value: true, default: true } },
   { id: 'BLUR', type: 'range-slider', default: 2.2, min: 0, max: 16, step: 0.1, description: 'text blur (px, decimal)' },
+  { id: 'SHOW_DATE', type: 'boolean', default: true, description: 'show date stamp' },
+  { id: 'SHOW_INFO', type: 'boolean', default: false, description: 'show camera and exposure details below date' },
+  { id: 'INFO_LINE_GAP', type: 'range-slider', default: 10, min: -200, max: 120, step: 1, description: 'px', visibleWhen: { id: 'SHOW_INFO', value: true, default: false } },
+  { id: 'LEFT_INFO_STRIP', type: 'boolean', default: false, description: 'show exposure info on a left black strip' },
 ];
 
+const LEFT_INFO_STYLE = {
+  stripWidth: 115,
+  textColor: '#FF2400',
+  textAlpha: 1,
+  fontSize: 75,
+  glow: true,
+  glowColor: '#FF0000',
+  glowRadius: 64,
+  glowIntensity: 2.35,
+  blur: 2.2,
+  itemSeparator: '   ',
+};
+
 const pad2 = (n: number): string => n.toString().padStart(2, '0');
+
+const isPortraitOutput = (photo: Photo, targetRatio: string): boolean => {
+  if (targetRatio === 'free') return photo.image.height > photo.image.width;
+
+  const [width, height] = targetRatio.split(':').map((value) => Number(value));
+  if (!Number.isFinite(width) || !Number.isFinite(height) || width <= 0 || height <= 0) return photo.image.height > photo.image.width;
+  return height > width;
+};
 
 type SevenSegmentName = 'a' | 'b' | 'c' | 'd' | 'e' | 'f' | 'g';
 
@@ -67,6 +93,32 @@ const SEVEN_SEGMENTS: Record<string, SevenSegmentName[]> = {
   '7': ['a', 'b', 'c'],
   '8': ['a', 'b', 'c', 'd', 'e', 'f', 'g'],
   '9': ['a', 'b', 'c', 'd', 'f', 'g'],
+  A: ['a', 'b', 'c', 'e', 'f', 'g'],
+  B: ['c', 'd', 'e', 'f', 'g'],
+  C: ['a', 'd', 'e', 'f'],
+  D: ['b', 'c', 'd', 'e', 'g'],
+  E: ['a', 'd', 'e', 'f', 'g'],
+  F: ['a', 'e', 'f', 'g'],
+  G: ['a', 'c', 'd', 'e', 'f'],
+  H: ['b', 'c', 'e', 'f', 'g'],
+  I: ['b', 'c'],
+  J: ['b', 'c', 'd'],
+  K: ['b', 'e', 'f', 'g'],
+  L: ['d', 'e', 'f'],
+  M: ['a', 'b', 'c', 'e', 'f'],
+  N: ['c', 'e', 'g'],
+  O: ['a', 'b', 'c', 'd', 'e', 'f'],
+  P: ['a', 'b', 'e', 'f', 'g'],
+  Q: ['a', 'b', 'c', 'f', 'g'],
+  R: ['e', 'g'],
+  S: ['a', 'c', 'd', 'f', 'g'],
+  T: ['d', 'e', 'f', 'g'],
+  U: ['b', 'c', 'd', 'e', 'f'],
+  V: ['c', 'd', 'e'],
+  W: ['b', 'd', 'f'],
+  X: ['b', 'c', 'e', 'f', 'g'],
+  Y: ['b', 'c', 'd', 'f', 'g'],
+  Z: ['a', 'b', 'd', 'e', 'g'],
 };
 
 type SegmentMetrics = {
@@ -168,9 +220,12 @@ const drawSevenSegment = (context: CanvasRenderingContext2D, segment: SevenSegme
 
 const measureSegmentChar = (char: string, metrics: SegmentMetrics): number => {
   if (char === '1') return metrics.width * 0.34 + metrics.digitGap;
+  if (char === 'o') return metrics.width * 0.48 + metrics.digitGap;
   if (char >= '0' && char <= '9') return metrics.width + metrics.digitGap + metrics.slant;
+  if (SEVEN_SEGMENTS[char]) return metrics.width + metrics.digitGap + metrics.slant;
+  if (char === ' ') return metrics.width * 0.46;
   if (char === "'") return metrics.width * 0.28;
-  if (char === ':' || char === '-' || char === '/' || char === '.') return metrics.width * 0.38;
+  if (char === ':' || char === '-' || char === '/' || char === '.' || char === ',') return metrics.width * 0.38;
   return metrics.width * 0.48;
 };
 
@@ -188,6 +243,16 @@ const drawSegmentChar = (context: CanvasRenderingContext2D, char: string, x: num
     const innerGap = thickness * 0.7;
     drawLampBar(context, thickness * 0.04, thickness + innerGap, thickness * 0.92, height / 2 - thickness - innerGap * 1.35, 'vertical');
     drawLampBar(context, thickness * 0.04, height / 2 + innerGap, thickness * 0.92, height / 2 - thickness - innerGap * 1.35, 'vertical');
+    context.restore();
+    return;
+  }
+
+  if (char === 'o') {
+    context.save();
+    context.translate(x + slant + width * 0.07, y + height * 0.18);
+    context.transform(1, 0, -0.13, 1, 0, 0);
+    context.scale(0.68, 0.68);
+    ['a', 'b', 'c', 'd', 'e', 'f'].forEach((segment) => drawSevenSegment(context, segment as SevenSegmentName, metrics));
     context.restore();
     return;
   }
@@ -219,6 +284,12 @@ const drawSegmentChar = (context: CanvasRenderingContext2D, char: string, x: num
 
   if (char === '.') {
     drawRoundedRect(context, x + thickness * 0.35, y + height - thickness * 0.9, thickness * 0.9, thickness * 0.9, radius);
+    return;
+  }
+
+  if (char === ',') {
+    drawRoundedRect(context, x + thickness * 0.35, y + height - thickness * 1.25, thickness * 0.9, thickness * 0.9, radius);
+    drawRoundedRect(context, x + thickness * 0.5, y + height - thickness * 0.45, thickness * 0.55, thickness * 0.75, radius);
     return;
   }
 
@@ -254,7 +325,7 @@ const createTintedMask = (mask: HTMLCanvasElement, color: string): HTMLCanvasEle
 };
 
 const DOT_MATRIX_GLYPHS: Record<string, string[]> = {
-  "'": ['010', '010', '000', '000', '000', '000', '000'],
+  "'": ['110', '110', '010', '100', '000', '000', '000'],
   '0': ['01110', '10001', '10011', '10101', '11001', '10001', '01110'],
   '1': ['00100', '01100', '00100', '00100', '00100', '00100', '01110'],
   '2': ['01110', '10001', '00001', '00010', '00100', '01000', '11111'],
@@ -265,9 +336,40 @@ const DOT_MATRIX_GLYPHS: Record<string, string[]> = {
   '7': ['11111', '00001', '00010', '00100', '01000', '01000', '01000'],
   '8': ['01110', '10001', '10001', '01110', '10001', '10001', '01110'],
   '9': ['01110', '10001', '10001', '01111', '00001', '00010', '01100'],
-  年: ['1111110', '0010000', '1111100', '0010000', '1111110', '0010000', '0010000'],
-  月: ['1111100', '1000100', '1111100', '1000100', '1111100', '1000100', '1001100'],
-  日: ['1111100', '1000100', '1000100', '1111100', '1000100', '1000100', '1111100'],
+  A: ['01110', '10001', '10001', '11111', '10001', '10001', '10001'],
+  B: ['11110', '10001', '10001', '11110', '10001', '10001', '11110'],
+  C: ['01111', '10000', '10000', '10000', '10000', '10000', '01111'],
+  D: ['11110', '10001', '10001', '10001', '10001', '10001', '11110'],
+  E: ['11111', '10000', '10000', '11110', '10000', '10000', '11111'],
+  F: ['11111', '10000', '10000', '11110', '10000', '10000', '10000'],
+  G: ['01111', '10000', '10000', '10011', '10001', '10001', '01111'],
+  H: ['10001', '10001', '10001', '11111', '10001', '10001', '10001'],
+  I: ['11111', '00100', '00100', '00100', '00100', '00100', '11111'],
+  J: ['00111', '00010', '00010', '00010', '10010', '10010', '01100'],
+  K: ['10001', '10010', '10100', '11000', '10100', '10010', '10001'],
+  L: ['10000', '10000', '10000', '10000', '10000', '10000', '11111'],
+  M: ['10001', '11011', '10101', '10101', '10001', '10001', '10001'],
+  N: ['10001', '11001', '10101', '10011', '10001', '10001', '10001'],
+  O: ['01110', '10001', '10001', '10001', '10001', '10001', '01110'],
+  P: ['11110', '10001', '10001', '11110', '10000', '10000', '10000'],
+  Q: ['01110', '10001', '10001', '10001', '10101', '10010', '01101'],
+  R: ['11110', '10001', '10001', '11110', '10100', '10010', '10001'],
+  S: ['01111', '10000', '10000', '01110', '00001', '00001', '11110'],
+  T: ['11111', '00100', '00100', '00100', '00100', '00100', '00100'],
+  U: ['10001', '10001', '10001', '10001', '10001', '10001', '01110'],
+  V: ['10001', '10001', '10001', '10001', '10001', '01010', '00100'],
+  W: ['10001', '10001', '10001', '10101', '10101', '10101', '01010'],
+  X: ['10001', '10001', '01010', '00100', '01010', '10001', '10001'],
+  Y: ['10001', '10001', '01010', '00100', '00100', '00100', '00100'],
+  Z: ['11111', '00001', '00010', '00100', '01000', '10000', '11111'],
+  '-': ['00000', '00000', '00000', '11110', '00000', '00000', '00000'],
+  '/': ['00001', '00010', '00010', '00100', '01000', '01000', '10000'],
+  '.': ['00000', '00000', '00000', '00000', '00000', '01100', '01100'],
+  ',': ['00000', '00000', '00000', '00000', '00000', '01100', '00100'],
+  ':': ['00000', '01100', '01100', '00000', '01100', '01100', '00000'],
+  年: ['01000', '01111', '10010', '01111', '01010', '11111', '00010'],
+  月: ['01111', '01001', '01111', '01001', '01111', '01001', '10001'],
+  日: ['01111', '01001', '01001', '01111', '01001', '01001', '01111'],
 };
 
 type DotMatrixMetrics = {
@@ -525,6 +627,41 @@ const formatDate = (date: Date, format: string): string => {
   }
 };
 
+const formatLeftInfoShutter = (exposureTime: string): string => {
+  const shutter = exposureTime.replace(/s$/i, '').toUpperCase();
+  const reciprocal = shutter.match(/^1\/(.+)$/);
+  return reciprocal ? reciprocal[1] : shutter;
+};
+
+const formatLeftExposureInfo = (photo: Photo): string =>
+  [
+    formatLeftInfoShutter(photo.exposureTime),
+    photo.fNumber,
+    photo.exposureBias,
+  ]
+    .filter(Boolean)
+    .join(LEFT_INFO_STYLE.itemSeparator)
+    .toUpperCase();
+
+const formatCameraInfo = (photo: Photo): string => [ photo.model].filter(Boolean).join(' ').toUpperCase();
+
+const formatExposureDetailInfo = (photo: Photo): string =>
+  [
+    photo.iso,
+    photo.focalLength,
+    photo.fNumber,
+    photo.exposureTime,
+  ]
+    .filter(Boolean)
+    .join(', ')
+    .toUpperCase();
+
+const replaceShutterZerosWithSmallGlyphs = (text: string, photo: Photo): string => {
+  const shutter = formatLeftInfoShutter(photo.exposureTime);
+  if (!shutter) return text;
+  return text.replace(shutter, shutter.replace(/0/g, 'o'));
+};
+
 const DATABACK_FUNC: ThemeFunc = (photo: Photo, input: ThemeOptionInput, store: Store) => {
   const DATE_FORMAT = (input.get('DATE_FORMAT') as string).trim();
   const POSITION = (input.get('POSITION') as string).trim();
@@ -541,41 +678,129 @@ const DATABACK_FUNC: ThemeFunc = (photo: Photo, input: ThemeOptionInput, store: 
   const GLOW_RADIUS = input.get('GLOW_RADIUS') as number;
   const GLOW_INTENSITY = input.get('GLOW_INTENSITY') as number;
   const BLUR = input.get('BLUR') as number;
+  const SHOW_DATE = input.get('SHOW_DATE') as boolean;
+  const SHOW_INFO = input.get('SHOW_INFO') as boolean;
+  const INFO_LINE_GAP = input.get('INFO_LINE_GAP') as number;
+  const LEFT_INFO_STRIP = input.get('LEFT_INFO_STRIP') as boolean;
+  const useBottomInfoStrip = LEFT_INFO_STRIP && isPortraitOutput(photo, store.ratio);
 
   const canvas = sandbox(photo, {
     targetRatio: store.ratio,
     notCroppedMode: store.notCroppedMode,
     backgroundColor: '#000000',
-    padding: { top: 0, right: 0, bottom: 0, left: 0 },
+    padding: {
+      top: 0,
+      right: 0,
+      bottom: useBottomInfoStrip ? LEFT_INFO_STYLE.stripWidth : 0,
+      left: LEFT_INFO_STRIP && !useBottomInfoStrip ? LEFT_INFO_STYLE.stripWidth : 0,
+    },
   });
 
   const rawDate = overrideExifMetadata()?.takenAt || photo.metadata.takenAt;
-  if (!rawDate) return canvas;
+  const date = rawDate ? new Date(rawDate) : null;
+  const text = date && !isNaN(date.getTime()) ? formatDate(date, DATE_FORMAT) : '';
+  if (SHOW_DATE && !text) return canvas;
 
-  const date = new Date(rawDate);
-  if (isNaN(date.getTime())) return canvas;
-
-  const text = formatDate(date, DATE_FORMAT);
+  const cameraInfoLine = formatCameraInfo(photo);
+  const exposureDetailLine = store.disableExposureMeter ? '' : formatExposureDetailInfo(photo);
+  const sideInfoLine = store.disableExposureMeter ? '' : replaceShutterZerosWithSmallGlyphs(formatLeftExposureInfo(photo), photo);
+  const textLines = [
+    ...(SHOW_DATE && text ? [{ text, fontSize: FONT_SIZE, spaceGap: SPACE_GAP, splitSpaces: true }] : []),
+    ...(SHOW_INFO && cameraInfoLine ? [{ text: cameraInfoLine, fontSize: FONT_SIZE, spaceGap: SPACE_GAP, splitSpaces: false }] : []),
+    ...(SHOW_INFO && exposureDetailLine ? [{ text: exposureDetailLine, fontSize: FONT_SIZE, spaceGap: SPACE_GAP, splitSpaces: false }] : []),
+  ];
 
   const context = canvas.getContext('2d')!;
-  context.save();
   context.fillStyle = TEXT_COLOR;
   context.font = `${FONT_SIZE}px ${FONT_FAMILY}`;
   context.textAlign = 'left';
 
   const useSegmentLamp = RENDERING_STYLE === 'segment-lamp';
   const useDotMatrix = RENDERING_STYLE === 'dot-matrix';
-  const segmentMetrics = createSegmentMetrics(FONT_SIZE);
-  const dotMatrixMetrics = createDotMatrixMetrics(FONT_SIZE);
-  const tokens = text.split(' ');
-  const tokenWidths = tokens.map((tok) => {
-    if (useSegmentLamp) return measureSegmentToken(tok, segmentMetrics);
-    if (useDotMatrix) return measureDotMatrixToken(tok, dotMatrixMetrics);
-    return context.measureText(tok).width;
+  const renderLines = textLines.map((line, lineIndex) => {
+    context.font = `${line.fontSize}px ${FONT_FAMILY}`;
+    const lineUseSegmentLamp = useSegmentLamp;
+    const lineUseDotMatrix = useDotMatrix;
+    const segmentMetrics = createSegmentMetrics(line.fontSize);
+    const dotMatrixMetrics = createDotMatrixMetrics(line.fontSize);
+    const tokens = line.splitSpaces ? line.text.split(' ') : [line.text];
+    const naturalSpace = context.measureText(' ').width;
+    const gap = lineIndex === 0 ? naturalSpace + line.spaceGap : 0;
+    const tokenWidths = tokens.map((tok) => {
+      if (lineUseSegmentLamp) return measureSegmentToken(tok, segmentMetrics);
+      if (lineUseDotMatrix) return measureDotMatrixToken(tok, dotMatrixMetrics);
+      return context.measureText(tok).width;
+    });
+
+    return {
+      ...line,
+      useSegmentLamp: lineUseSegmentLamp,
+      useDotMatrix: lineUseDotMatrix,
+      tokens,
+      tokenWidths,
+      gap,
+      totalWidth: tokenWidths.reduce((a, b) => a + b, 0) + gap * Math.max(0, tokens.length - 1),
+      segmentMetrics,
+      dotMatrixMetrics,
+    };
   });
-  const naturalSpace = context.measureText(' ').width;
-  const gap = naturalSpace + SPACE_GAP;
-  const totalWidth = tokenWidths.reduce((a, b) => a + b, 0) + gap * Math.max(0, tokens.length - 1);
+  const drawLampLine = (line: (typeof renderLines)[number], baseline: CanvasTextBaseline) => {
+    if (line.useSegmentLamp) {
+      drawSegmentLampStamp(context, line.tokens, line.tokenWidths, line.gap, line.segmentMetrics, baseline, {
+        textColor: TEXT_COLOR,
+        textAlpha: TEXT_ALPHA,
+        glow: GLOW,
+        glowColor: GLOW_COLOR,
+        glowRadius: GLOW_RADIUS,
+        glowIntensity: GLOW_INTENSITY,
+        blur: BLUR,
+      });
+      return;
+    }
+
+    if (line.useDotMatrix) {
+      drawDotMatrixStamp(context, line.tokens, line.tokenWidths, line.gap, line.dotMatrixMetrics, baseline, {
+        textColor: TEXT_COLOR,
+        textAlpha: TEXT_ALPHA,
+        glow: GLOW,
+        glowColor: GLOW_COLOR,
+        glowRadius: GLOW_RADIUS,
+        glowIntensity: GLOW_INTENSITY,
+        blur: BLUR,
+      });
+    }
+  };
+
+  if (LEFT_INFO_STRIP && sideInfoLine) {
+    const segmentMetrics = createSegmentMetrics(LEFT_INFO_STYLE.fontSize);
+    const tokenWidths = [measureSegmentToken(sideInfoLine, segmentMetrics)];
+    const totalWidth = tokenWidths[0];
+
+    context.save();
+    if (useBottomInfoStrip) {
+      context.translate((canvas.width + totalWidth) / 2, canvas.height - Math.max(0, (LEFT_INFO_STYLE.stripWidth - LEFT_INFO_STYLE.fontSize) / 2));
+      context.rotate(Math.PI);
+    } else {
+      context.translate(Math.max(0, (LEFT_INFO_STYLE.stripWidth - LEFT_INFO_STYLE.fontSize) / 2), (canvas.height + totalWidth) / 2);
+      context.rotate(-Math.PI / 2);
+    }
+    drawSegmentLampStamp(context, [sideInfoLine], tokenWidths, 0, segmentMetrics, 'top', {
+      textColor: LEFT_INFO_STYLE.textColor,
+      textAlpha: LEFT_INFO_STYLE.textAlpha,
+      glow: LEFT_INFO_STYLE.glow,
+      glowColor: LEFT_INFO_STYLE.glowColor,
+      glowRadius: LEFT_INFO_STYLE.glowRadius,
+      glowIntensity: LEFT_INFO_STYLE.glowIntensity,
+      blur: LEFT_INFO_STYLE.blur,
+    });
+    context.restore();
+  }
+
+  if (renderLines.length === 0) return canvas;
+
+  const totalWidth = Math.max(...renderLines.map((line) => line.totalWidth));
+
+  context.save();
 
   const isPortrait = canvas.height > canvas.width;
   let baseline: CanvasTextBaseline = 'bottom';
@@ -615,77 +840,77 @@ const DATABACK_FUNC: ThemeFunc = (photo: Photo, input: ThemeOptionInput, store: 
     context.translate(startX, y);
   }
 
-  const drawTokens = () => {
-    if (useSegmentLamp) {
-      drawSegmentLampStamp(context, tokens, tokenWidths, gap, segmentMetrics, baseline, {
-        textColor: TEXT_COLOR,
-        textAlpha: TEXT_ALPHA,
-        glow: GLOW,
-        glowColor: GLOW_COLOR,
-        glowRadius: GLOW_RADIUS,
-        glowIntensity: GLOW_INTENSITY,
-        blur: BLUR,
-      });
-      return;
+  const alignRight = isPortrait || POSITION.endsWith('right');
+  const getLineX = (line: (typeof renderLines)[number]) => (alignRight ? totalWidth - line.totalWidth : 0);
+  const getLineY = (lineIndex: number) => {
+    if (lineIndex === 0) return 0;
+    if (baseline === 'top') {
+      return renderLines.slice(0, lineIndex).reduce((offset, line) => offset + line.fontSize + INFO_LINE_GAP, 0);
     }
+    return renderLines.slice(1, lineIndex + 1).reduce((offset, line) => offset + line.fontSize + INFO_LINE_GAP, 0);
+  };
 
-    if (useDotMatrix) {
-      drawDotMatrixStamp(context, tokens, tokenWidths, gap, dotMatrixMetrics, baseline, {
-        textColor: TEXT_COLOR,
-        textAlpha: TEXT_ALPHA,
-        glow: GLOW,
-        glowColor: GLOW_COLOR,
-        glowRadius: GLOW_RADIUS,
-        glowIntensity: GLOW_INTENSITY,
-        blur: BLUR,
-      });
-      return;
-    }
-
+  const drawFontTokens = (line: (typeof renderLines)[number]) => {
     let cursor = 0;
-    for (let i = 0; i < tokens.length; i++) {
-      context.fillText(tokens[i], cursor, 0);
-      cursor += tokenWidths[i] + gap;
+    for (let i = 0; i < line.tokens.length; i++) {
+      context.fillText(line.tokens[i], cursor, 0);
+      cursor += line.tokenWidths[i] + line.gap;
     }
   };
 
-  if (GLOW && !useSegmentLamp && !useDotMatrix) {
-    const intensity = Math.max(0, GLOW_INTENSITY);
+  const drawLine = (line: (typeof renderLines)[number], lineIndex: number) => {
     context.save();
-    context.fillStyle = GLOW_COLOR;
-    context.shadowColor = GLOW_COLOR;
-    context.globalCompositeOperation = 'lighter';
+    context.translate(getLineX(line), getLineY(lineIndex));
+    context.font = `${line.fontSize}px ${FONT_FAMILY}`;
 
-    const passes = [
-      { filterBlur: GLOW_RADIUS * 0.55, shadowBlur: GLOW_RADIUS * 1.45, alphaMul: 0.16 },
-      { filterBlur: GLOW_RADIUS * 0.26, shadowBlur: GLOW_RADIUS * 0.9, alphaMul: 0.34 },
-      { filterBlur: Math.max(BLUR * 2.2, 1), shadowBlur: GLOW_RADIUS * 0.35, alphaMul: 0.62 },
-    ];
+    if (line.useSegmentLamp || line.useDotMatrix) {
+      drawLampLine(line, baseline);
+      context.restore();
+      return;
+    }
 
-    for (const pass of passes) {
-      context.globalAlpha = Math.min(1, TEXT_ALPHA * intensity * pass.alphaMul);
-      context.shadowBlur = pass.shadowBlur;
-      context.filter = pass.filterBlur > 0 ? `blur(${pass.filterBlur}px)` : 'none';
-      drawTokens();
+    if (GLOW) {
+      const intensity = Math.max(0, GLOW_INTENSITY);
+      context.save();
+      context.fillStyle = GLOW_COLOR;
+      context.shadowColor = GLOW_COLOR;
+      context.globalCompositeOperation = 'lighter';
+
+      const passes = [
+        { filterBlur: GLOW_RADIUS * 0.55, shadowBlur: GLOW_RADIUS * 1.45, alphaMul: 0.16 },
+        { filterBlur: GLOW_RADIUS * 0.26, shadowBlur: GLOW_RADIUS * 0.9, alphaMul: 0.34 },
+        { filterBlur: Math.max(BLUR * 2.2, 1), shadowBlur: GLOW_RADIUS * 0.35, alphaMul: 0.62 },
+      ];
+
+      for (const pass of passes) {
+        context.globalAlpha = Math.min(1, TEXT_ALPHA * intensity * pass.alphaMul);
+        context.shadowBlur = pass.shadowBlur;
+        context.filter = pass.filterBlur > 0 ? `blur(${pass.filterBlur}px)` : 'none';
+        drawFontTokens(line);
+      }
+
+      context.restore();
+    }
+
+    context.filter = BLUR > 0 ? `blur(${BLUR}px)` : 'none';
+    context.globalAlpha = TEXT_ALPHA;
+    context.fillStyle = TEXT_COLOR;
+    drawFontTokens(line);
+
+    if (GLOW && GLOW_INTENSITY > 0) {
+      context.save();
+      context.globalCompositeOperation = 'lighter';
+      context.globalAlpha = Math.min(0.35, TEXT_ALPHA * GLOW_INTENSITY * 0.16);
+      context.fillStyle = '#FFD0A0';
+      context.filter = BLUR > 0 ? `blur(${Math.max(0.2, BLUR * 0.35)}px)` : 'none';
+      drawFontTokens(line);
+      context.restore();
     }
 
     context.restore();
-  }
+  };
 
-  context.filter = BLUR > 0 ? `blur(${BLUR}px)` : 'none';
-  context.globalAlpha = TEXT_ALPHA;
-  context.fillStyle = TEXT_COLOR;
-  drawTokens();
-
-  if (GLOW && GLOW_INTENSITY > 0 && !useSegmentLamp && !useDotMatrix) {
-    context.save();
-    context.globalCompositeOperation = 'lighter';
-    context.globalAlpha = Math.min(0.35, TEXT_ALPHA * GLOW_INTENSITY * 0.16);
-    context.fillStyle = '#FFD0A0';
-    context.filter = BLUR > 0 ? `blur(${Math.max(0.2, BLUR * 0.35)}px)` : 'none';
-    drawTokens();
-    context.restore();
-  }
+  renderLines.forEach((line, index) => drawLine(line, index));
 
   context.restore();
   return canvas;
@@ -710,6 +935,10 @@ const DATABACK_PRESETS = [
       GLOW_RADIUS: 64,
       GLOW_INTENSITY: 2.35,
       BLUR: 2.2,
+      SHOW_DATE: false,
+      SHOW_INFO: false,
+      INFO_LINE_GAP: 10,
+      LEFT_INFO_STRIP: true,
     },
   },
   {
@@ -730,6 +959,10 @@ const DATABACK_PRESETS = [
       GLOW_RADIUS: 5,
       GLOW_INTENSITY: 1,
       BLUR: 1.2,
+      SHOW_DATE: true,
+      SHOW_INFO: false,
+      INFO_LINE_GAP: -120,
+      LEFT_INFO_STRIP: false,
     },
   },
   {
@@ -750,6 +983,10 @@ const DATABACK_PRESETS = [
       GLOW_RADIUS: 5,
       GLOW_INTENSITY: 1.1,
       BLUR: 0.35,
+      SHOW_DATE: true,
+      SHOW_INFO: false,
+      INFO_LINE_GAP: 10,
+      LEFT_INFO_STRIP: false,
     },
   },
 ];

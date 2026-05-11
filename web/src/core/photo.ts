@@ -109,6 +109,14 @@ class Photo {
   }
 
   /**
+   * Returns the exposure bias value.
+   * @example '-0.3'
+   */
+  public get exposureBias(): string {
+    return overrideExifMetadata()?.exposureBias || this.metadata.exposureBias || '';
+  }
+
+  /**
    * Returns the date the photo was taken.
    * @example '2021-01-01T00:00:00.000+09:00'
    */
