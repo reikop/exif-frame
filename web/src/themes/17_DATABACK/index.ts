@@ -3,8 +3,9 @@ import { Store } from '../../store';
 import sandbox from '../../core/drawing/sandbox';
 import { ThemeFunc } from '../../core/drawing/theme';
 import { ThemeOption, ThemeOptionInput } from '../../pages/theme/types/theme-option';
-import Font from '../../fonts';
 import overrideExifMetadata from '../../core/exif-metadata/override-exif-metadata';
+
+const DOT_MATRIX_FONT_NAMES = ['default', 'copy-1', 'copy-2'];
 
 const DATABACK_OPTIONS: ThemeOption[] = [
   {
@@ -34,14 +35,8 @@ const DATABACK_OPTIONS: ThemeOption[] = [
     description: 'lit LED core color',
   },
   { id: 'TEXT_ALPHA', type: 'range-slider', default: 1, min: 0, max: 1, step: 0.01, description: '0 - 1' },
-  {
-    id: 'FONT_FAMILY',
-    type: 'select',
-    options: ['Barlow', ...Object.values(Font)],
-    default: 'DSEG7Classic-Italic',
-    description: 'used when rendering style is font',
-  },
   { id: 'RENDERING_STYLE', type: 'select', options: ['segment-lamp', 'dot-matrix', 'font'], default: 'segment-lamp', description: 'segment-lamp matches film databack LEDs' },
+  { id: 'DOT_MATRIX_FONT', type: 'select', options: DOT_MATRIX_FONT_NAMES, default: 'default', description: 'dot matrix glyph set', visibleWhen: { id: 'RENDERING_STYLE', value: 'dot-matrix', default: 'segment-lamp' } },
   { id: 'FONT_SIZE', type: 'range-slider', default: 150, min: 20, max: 400, step: 1, description: 'px' },
   { id: 'SPACE_GAP', type: 'range-slider', default: 145, min: -50, max: 260, step: 1, description: 'extra px added on spaces only' },
   { id: 'OFFSET_X', type: 'range-slider', default: 450, min: 0, max: 1000, step: 5, description: 'horizontal distance from edge (px)' },
@@ -120,6 +115,7 @@ const SEVEN_SEGMENTS: Record<string, SevenSegmentName[]> = {
   X: ['b', 'c', 'e', 'f', 'g'],
   Y: ['b', 'c', 'd', 'f', 'g'],
   Z: ['a', 'b', 'd', 'e', 'g'],
+  o: ['c', 'd', 'e', 'g'],
 };
 
 type SegmentMetrics = {
@@ -219,14 +215,15 @@ const drawSevenSegment = (context: CanvasRenderingContext2D, segment: SevenSegme
   }
 };
 
+const SMALL_SHUTTER_ZERO = 'o';
+
 const measureSegmentChar = (char: string, metrics: SegmentMetrics): number => {
-  if (char === '1') return metrics.width * 0.34 + metrics.digitGap;
-  if (char === 'o') return metrics.width * 0.48 + metrics.digitGap;
   if (char >= '0' && char <= '9') return metrics.width + metrics.digitGap + metrics.slant;
   if (SEVEN_SEGMENTS[char]) return metrics.width + metrics.digitGap + metrics.slant;
   if (char === ' ') return metrics.width * 0.46;
   if (char === "'") return metrics.width * 0.28;
-  if (char === ':' || char === '-' || char === '/' || char === '.' || char === ',') return metrics.width * 0.38;
+  if (char === '.') return metrics.thickness * 0.9;
+  if (char === ':' || char === '-' || char === '/' || char === ',') return metrics.width * 0.38;
   return metrics.width * 0.48;
 };
 
@@ -236,27 +233,6 @@ const measureSegmentToken = (token: string, metrics: SegmentMetrics): number =>
 const drawSegmentChar = (context: CanvasRenderingContext2D, char: string, x: number, y: number, metrics: SegmentMetrics): void => {
   const { width, height, thickness, radius, slant } = metrics;
   const segments = SEVEN_SEGMENTS[char];
-
-  if (char === '1') {
-    context.save();
-    context.translate(x + slant * 0.35, y);
-    context.transform(1, 0, -0.13, 1, 0, 0);
-    const innerGap = thickness * 0.7;
-    drawLampBar(context, thickness * 0.04, thickness + innerGap, thickness * 0.92, height / 2 - thickness - innerGap * 1.35, 'vertical');
-    drawLampBar(context, thickness * 0.04, height / 2 + innerGap, thickness * 0.92, height / 2 - thickness - innerGap * 1.35, 'vertical');
-    context.restore();
-    return;
-  }
-
-  if (char === 'o') {
-    context.save();
-    context.translate(x + slant + width * 0.07, y + height * 0.18);
-    context.transform(1, 0, -0.13, 1, 0, 0);
-    context.scale(0.68, 0.68);
-    ['a', 'b', 'c', 'd', 'e', 'f'].forEach((segment) => drawSevenSegment(context, segment as SevenSegmentName, metrics));
-    context.restore();
-    return;
-  }
 
   if (segments) {
     context.save();
@@ -284,7 +260,7 @@ const drawSegmentChar = (context: CanvasRenderingContext2D, char: string, x: num
   }
 
   if (char === '.') {
-    drawRoundedRect(context, x + thickness * 0.35, y + height - thickness * 0.9, thickness * 0.9, thickness * 0.9, radius);
+    drawRoundedRect(context, x - width * 0.25, y + height - thickness * 0.9, thickness * 0.9, thickness * 0.9, radius);
     return;
   }
 
@@ -297,7 +273,7 @@ const drawSegmentChar = (context: CanvasRenderingContext2D, char: string, x: num
   if (char === '/') {
     context.save();
     context.translate(x + width * 0.26, y + height * 0.85);
-    context.rotate(-0.45);
+    context.rotate(0.45);
     drawRoundedRect(context, 0, -height * 0.7, thickness * 0.85, height * 0.7, radius);
     context.restore();
   }
@@ -325,7 +301,9 @@ const createTintedMask = (mask: HTMLCanvasElement, color: string): HTMLCanvasEle
   return tinted;
 };
 
-const DOT_MATRIX_GLYPHS: Record<string, string[]> = {
+type DotMatrixGlyphs = Record<string, string[]>;
+
+const DOT_MATRIX_GLYPHS: DotMatrixGlyphs = {
   "'": ['110', '110', '010', '100', '000', '000', '000'],
   '0': ['01110', '10001', '10011', '10101', '11001', '10001', '01110'],
   '1': ['00100', '01100', '00100', '00100', '00100', '00100', '01110'],
@@ -373,6 +351,14 @@ const DOT_MATRIX_GLYPHS: Record<string, string[]> = {
   日: ['01111', '01001', '01001', '01111', '01001', '01001', '01111'],
 };
 
+const cloneDotMatrixGlyphs = (glyphs: DotMatrixGlyphs): DotMatrixGlyphs => Object.fromEntries(Object.entries(glyphs).map(([key, rows]) => [key, [...rows]]));
+
+const DOT_MATRIX_GLYPH_SETS: Record<string, DotMatrixGlyphs> = {
+  default: DOT_MATRIX_GLYPHS,
+  'copy-1': cloneDotMatrixGlyphs(DOT_MATRIX_GLYPHS),
+  'copy-2': cloneDotMatrixGlyphs(DOT_MATRIX_GLYPHS),
+};
+
 type DotMatrixMetrics = {
   dot: number;
   pitch: number;
@@ -392,17 +378,17 @@ const createDotMatrixMetrics = (fontSize: number): DotMatrixMetrics => {
   };
 };
 
-const measureDotMatrixChar = (char: string, metrics: DotMatrixMetrics): number => {
-  const glyph = DOT_MATRIX_GLYPHS[char];
+const measureDotMatrixChar = (char: string, metrics: DotMatrixMetrics, glyphs: DotMatrixGlyphs): number => {
+  const glyph = glyphs[char];
   if (!glyph) return metrics.pitch * 3;
   return glyph[0].length * metrics.pitch - (metrics.pitch - metrics.dot) + metrics.glyphGap;
 };
 
-const measureDotMatrixToken = (token: string, metrics: DotMatrixMetrics): number =>
-  Array.from(token).reduce((width, char) => width + measureDotMatrixChar(char, metrics), 0);
+const measureDotMatrixToken = (token: string, metrics: DotMatrixMetrics, glyphs: DotMatrixGlyphs): number =>
+  Array.from(token).reduce((width, char) => width + measureDotMatrixChar(char, metrics, glyphs), 0);
 
-const drawDotMatrixChar = (context: CanvasRenderingContext2D, char: string, x: number, y: number, metrics: DotMatrixMetrics): void => {
-  const glyph = DOT_MATRIX_GLYPHS[char];
+const drawDotMatrixChar = (context: CanvasRenderingContext2D, char: string, x: number, y: number, metrics: DotMatrixMetrics, glyphs: DotMatrixGlyphs): void => {
+  const glyph = glyphs[char];
   if (!glyph) return;
 
   glyph.forEach((row, rowIndex) => {
@@ -413,11 +399,11 @@ const drawDotMatrixChar = (context: CanvasRenderingContext2D, char: string, x: n
   });
 };
 
-const drawDotMatrixToken = (context: CanvasRenderingContext2D, token: string, x: number, y: number, metrics: DotMatrixMetrics): void => {
+const drawDotMatrixToken = (context: CanvasRenderingContext2D, token: string, x: number, y: number, metrics: DotMatrixMetrics, glyphs: DotMatrixGlyphs): void => {
   let cursor = x;
   Array.from(token).forEach((char) => {
-    drawDotMatrixChar(context, char, cursor, y, metrics);
-    cursor += measureDotMatrixChar(char, metrics);
+    drawDotMatrixChar(context, char, cursor, y, metrics, glyphs);
+    cursor += measureDotMatrixChar(char, metrics, glyphs);
   });
 };
 
@@ -427,6 +413,7 @@ const drawDotMatrixStamp = (
   tokenWidths: number[],
   gap: number,
   metrics: DotMatrixMetrics,
+  glyphs: DotMatrixGlyphs,
   baseline: CanvasTextBaseline,
   option: {
     textColor: string;
@@ -450,7 +437,7 @@ const drawDotMatrixStamp = (
 
   let cursor = 0;
   tokens.forEach((token, index) => {
-    drawDotMatrixToken(maskContext, token, cursor, 0, metrics);
+    drawDotMatrixToken(maskContext, token, cursor, 0, metrics, glyphs);
     cursor += tokenWidths[index] + gap;
   });
 
@@ -644,23 +631,20 @@ const formatLeftExposureInfo = (photo: Photo): string =>
     .join(LEFT_INFO_STYLE.itemSeparator)
     .toUpperCase();
 
-const formatCameraInfo = (photo: Photo): string => [ photo.model].filter(Boolean).join(' ').toUpperCase();
-
-const formatExposureDetailInfo = (photo: Photo): string =>
+const formatExposureInfo = (photo: Photo): string =>
   [
-    photo.iso,
     photo.focalLength,
+    formatLeftInfoShutter(photo.exposureTime),
     photo.fNumber,
-    photo.exposureTime,
   ]
     .filter(Boolean)
-    .join(', ')
+    .join(' ')
     .toUpperCase();
 
 const replaceShutterZerosWithSmallGlyphs = (text: string, photo: Photo): string => {
   const shutter = formatLeftInfoShutter(photo.exposureTime);
   if (!shutter) return text;
-  return text.replace(shutter, shutter.replace(/0/g, 'o'));
+  return text.replace(shutter, shutter.replace(/0/g, SMALL_SHUTTER_ZERO));
 };
 
 const DATABACK_FUNC: ThemeFunc = (photo: Photo, input: ThemeOptionInput, store: Store) => {
@@ -668,8 +652,9 @@ const DATABACK_FUNC: ThemeFunc = (photo: Photo, input: ThemeOptionInput, store: 
   const POSITION = (input.get('POSITION') as string).trim();
   const TEXT_COLOR = (input.get('TEXT_COLOR') as string).trim();
   const TEXT_ALPHA = input.get('TEXT_ALPHA') as number;
-  const FONT_FAMILY = (input.get('FONT_FAMILY') as string).trim();
+  const FONT_FAMILY = ((input.get('FONT_FAMILY') as string | undefined) || 'DSEG7Classic-Italic').trim();
   const RENDERING_STYLE = (input.get('RENDERING_STYLE') as string).trim();
+  const DOT_MATRIX_FONT = (input.get('DOT_MATRIX_FONT') as string).trim();
   const FONT_SIZE = input.get('FONT_SIZE') as number;
   const SPACE_GAP = input.get('SPACE_GAP') as number;
   const OFFSET_X = input.get('OFFSET_X') as number;
@@ -706,13 +691,11 @@ const DATABACK_FUNC: ThemeFunc = (photo: Photo, input: ThemeOptionInput, store: 
   const text = date && !isNaN(date.getTime()) ? formatDate(date, DATE_FORMAT) : '';
   if (SHOW_DATE && !text) return canvas;
 
-  const cameraInfoLine = formatCameraInfo(photo);
-  const exposureDetailLine = store.disableExposureMeter ? '' : formatExposureDetailInfo(photo);
+  const exposureInfoLine = store.disableExposureMeter ? '' : formatExposureInfo(photo);
   const sideInfoLine = store.disableExposureMeter ? '' : replaceShutterZerosWithSmallGlyphs(formatLeftExposureInfo(photo), photo);
   const textLines = [
     ...(SHOW_DATE && text ? [{ text, fontSize: FONT_SIZE, spaceGap: SPACE_GAP, splitSpaces: true }] : []),
-    ...(SHOW_INFO && cameraInfoLine ? [{ text: cameraInfoLine, fontSize: FONT_SIZE, spaceGap: SPACE_GAP, splitSpaces: false }] : []),
-    ...(SHOW_INFO && exposureDetailLine ? [{ text: exposureDetailLine, fontSize: FONT_SIZE, spaceGap: SPACE_GAP, splitSpaces: false }] : []),
+    ...(SHOW_INFO && exposureInfoLine ? [{ text: exposureInfoLine, fontSize: FONT_SIZE, spaceGap: SPACE_GAP, splitSpaces: false }] : []),
   ];
 
   const context = canvas.getContext('2d')!;
@@ -722,6 +705,7 @@ const DATABACK_FUNC: ThemeFunc = (photo: Photo, input: ThemeOptionInput, store: 
 
   const useSegmentLamp = RENDERING_STYLE === 'segment-lamp';
   const useDotMatrix = RENDERING_STYLE === 'dot-matrix';
+  const dotMatrixGlyphs = DOT_MATRIX_GLYPH_SETS[DOT_MATRIX_FONT] ?? DOT_MATRIX_GLYPHS;
   const renderLines = textLines.map((line, lineIndex) => {
     context.font = `${line.fontSize}px ${FONT_FAMILY}`;
     const lineUseSegmentLamp = useSegmentLamp;
@@ -733,7 +717,7 @@ const DATABACK_FUNC: ThemeFunc = (photo: Photo, input: ThemeOptionInput, store: 
     const gap = lineIndex === 0 ? naturalSpace + line.spaceGap : 0;
     const tokenWidths = tokens.map((tok) => {
       if (lineUseSegmentLamp) return measureSegmentToken(tok, segmentMetrics);
-      if (lineUseDotMatrix) return measureDotMatrixToken(tok, dotMatrixMetrics);
+      if (lineUseDotMatrix) return measureDotMatrixToken(tok, dotMatrixMetrics, dotMatrixGlyphs);
       return context.measureText(tok).width;
     });
 
@@ -747,6 +731,7 @@ const DATABACK_FUNC: ThemeFunc = (photo: Photo, input: ThemeOptionInput, store: 
       totalWidth: tokenWidths.reduce((a, b) => a + b, 0) + gap * Math.max(0, tokens.length - 1),
       segmentMetrics,
       dotMatrixMetrics,
+      dotMatrixGlyphs,
     };
   });
   const drawLampLine = (line: (typeof renderLines)[number], baseline: CanvasTextBaseline) => {
@@ -764,7 +749,7 @@ const DATABACK_FUNC: ThemeFunc = (photo: Photo, input: ThemeOptionInput, store: 
     }
 
     if (line.useDotMatrix) {
-      drawDotMatrixStamp(context, line.tokens, line.tokenWidths, line.gap, line.dotMatrixMetrics, baseline, {
+      drawDotMatrixStamp(context, line.tokens, line.tokenWidths, line.gap, line.dotMatrixMetrics, line.dotMatrixGlyphs, baseline, {
         textColor: TEXT_COLOR,
         textAlpha: TEXT_ALPHA,
         glow: GLOW,
@@ -936,8 +921,8 @@ const DATABACK_PRESETS = [
       POSITION: 'bottom-right',
       TEXT_COLOR: '#FF2400',
       TEXT_ALPHA: 1,
-      FONT_FAMILY: 'DSEG7Classic-Italic',
       RENDERING_STYLE: 'segment-lamp',
+      DOT_MATRIX_FONT: 'default',
       FONT_SIZE: 75,
       SPACE_GAP: 85,
       OFFSET_X: 450,
@@ -959,22 +944,22 @@ const DATABACK_PRESETS = [
     values: {
       DATE_FORMAT: "DD M 'YY",
       POSITION: 'bottom-right',
-      TEXT_COLOR: '#eaff47',
-      TEXT_ALPHA: 0.4,
-      FONT_FAMILY: 'LCDDot',
-      RENDERING_STYLE: 'font',
-      FONT_SIZE: 211,
-      SPACE_GAP: 15,
-      OFFSET_X: 500,
-      OFFSET_Y: 300,
+      TEXT_COLOR: '#fbf309',
+      TEXT_ALPHA: 0.95,
+      RENDERING_STYLE: 'dot-matrix',
+      DOT_MATRIX_FONT: 'default',
+      FONT_SIZE: 115,
+      SPACE_GAP: 55,
+      OFFSET_X: 280,
+      OFFSET_Y: 280,
       GLOW: true,
-      GLOW_COLOR: '#FF4500',
-      GLOW_RADIUS: 5,
-      GLOW_INTENSITY: 1,
-      BLUR: 1.2,
+      GLOW_COLOR: '#ffde05',
+      GLOW_RADIUS: 9.5,
+      GLOW_INTENSITY: 4,
+      BLUR: 1,
       SHOW_DATE: true,
       SHOW_INFO: false,
-      INFO_LINE_GAP: -120,
+      INFO_LINE_GAP: 25,
       LEFT_INFO_STRIP: false,
       PORTRAIT_REVERSE_LAYOUT: false,
     },
@@ -986,8 +971,8 @@ const DATABACK_PRESETS = [
       POSITION: 'bottom-right',
       TEXT_COLOR: '#FFD72A',
       TEXT_ALPHA: 0.95,
-      FONT_FAMILY: 'LCDDot',
       RENDERING_STYLE: 'dot-matrix',
+      DOT_MATRIX_FONT: 'default',
       FONT_SIZE: 80,
       SPACE_GAP: 34,
       OFFSET_X: 700,
