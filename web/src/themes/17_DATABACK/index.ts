@@ -13,15 +13,8 @@ const DATABACK_OPTIONS: ThemeOption[] = [
     options: [
       "'YY M DD",
       "'YY MM DD",
-      'YY MM DD',
-      'DD MM YY',
-      'MM DD YY',
-      "DD M 'YY",
-      'YYYY MM DD',
-      'YYYY/MM/DD',
-      'YYYY-MM-DD',
-      'YY MM DD HH:MM',
-      'DD MM YY HH:MM',
+      "'YY年 M月DD日",
+      'DD HH:MM',
     ],
     default: "'YY M DD",
     description: 'date stamp format',
@@ -47,7 +40,7 @@ const DATABACK_OPTIONS: ThemeOption[] = [
     default: 'DSEG7Classic-Italic',
     description: 'used when rendering style is font',
   },
-  { id: 'RENDERING_STYLE', type: 'select', options: ['segment-lamp', 'font'], default: 'segment-lamp', description: 'segment-lamp matches film databack LEDs' },
+  { id: 'RENDERING_STYLE', type: 'select', options: ['segment-lamp', 'dot-matrix', 'font'], default: 'segment-lamp', description: 'segment-lamp matches film databack LEDs' },
   { id: 'FONT_SIZE', type: 'range-slider', default: 150, min: 20, max: 400, step: 1, description: 'px' },
   { id: 'SPACE_GAP', type: 'range-slider', default: 145, min: -50, max: 260, step: 1, description: 'extra px added on spaces only' },
   { id: 'OFFSET_X', type: 'range-slider', default: 450, min: 0, max: 1000, step: 5, description: 'horizontal distance from edge (px)' },
@@ -260,6 +253,141 @@ const createTintedMask = (mask: HTMLCanvasElement, color: string): HTMLCanvasEle
   return tinted;
 };
 
+const DOT_MATRIX_GLYPHS: Record<string, string[]> = {
+  "'": ['010', '010', '000', '000', '000', '000', '000'],
+  '0': ['01110', '10001', '10011', '10101', '11001', '10001', '01110'],
+  '1': ['00100', '01100', '00100', '00100', '00100', '00100', '01110'],
+  '2': ['01110', '10001', '00001', '00010', '00100', '01000', '11111'],
+  '3': ['11110', '00001', '00001', '01110', '00001', '00001', '11110'],
+  '4': ['00010', '00110', '01010', '10010', '11111', '00010', '00010'],
+  '5': ['11111', '10000', '11110', '00001', '00001', '10001', '01110'],
+  '6': ['00110', '01000', '10000', '11110', '10001', '10001', '01110'],
+  '7': ['11111', '00001', '00010', '00100', '01000', '01000', '01000'],
+  '8': ['01110', '10001', '10001', '01110', '10001', '10001', '01110'],
+  '9': ['01110', '10001', '10001', '01111', '00001', '00010', '01100'],
+  年: ['1111110', '0010000', '1111100', '0010000', '1111110', '0010000', '0010000'],
+  月: ['1111100', '1000100', '1111100', '1000100', '1111100', '1000100', '1001100'],
+  日: ['1111100', '1000100', '1000100', '1111100', '1000100', '1000100', '1111100'],
+};
+
+type DotMatrixMetrics = {
+  dot: number;
+  pitch: number;
+  height: number;
+  radius: number;
+  glyphGap: number;
+};
+
+const createDotMatrixMetrics = (fontSize: number): DotMatrixMetrics => {
+  const dot = fontSize / 9.7;
+  return {
+    dot,
+    pitch: dot * 1.45,
+    height: fontSize,
+    radius: dot * 0.22,
+    glyphGap: dot * 1.2,
+  };
+};
+
+const measureDotMatrixChar = (char: string, metrics: DotMatrixMetrics): number => {
+  const glyph = DOT_MATRIX_GLYPHS[char];
+  if (!glyph) return metrics.pitch * 3;
+  return glyph[0].length * metrics.pitch - (metrics.pitch - metrics.dot) + metrics.glyphGap;
+};
+
+const measureDotMatrixToken = (token: string, metrics: DotMatrixMetrics): number =>
+  Array.from(token).reduce((width, char) => width + measureDotMatrixChar(char, metrics), 0);
+
+const drawDotMatrixChar = (context: CanvasRenderingContext2D, char: string, x: number, y: number, metrics: DotMatrixMetrics): void => {
+  const glyph = DOT_MATRIX_GLYPHS[char];
+  if (!glyph) return;
+
+  glyph.forEach((row, rowIndex) => {
+    Array.from(row).forEach((cell, columnIndex) => {
+      if (cell !== '1') return;
+      drawRoundedRect(context, x + columnIndex * metrics.pitch, y + rowIndex * metrics.pitch, metrics.dot, metrics.dot, metrics.radius);
+    });
+  });
+};
+
+const drawDotMatrixToken = (context: CanvasRenderingContext2D, token: string, x: number, y: number, metrics: DotMatrixMetrics): void => {
+  let cursor = x;
+  Array.from(token).forEach((char) => {
+    drawDotMatrixChar(context, char, cursor, y, metrics);
+    cursor += measureDotMatrixChar(char, metrics);
+  });
+};
+
+const drawDotMatrixStamp = (
+  context: CanvasRenderingContext2D,
+  tokens: string[],
+  tokenWidths: number[],
+  gap: number,
+  metrics: DotMatrixMetrics,
+  baseline: CanvasTextBaseline,
+  option: {
+    textColor: string;
+    textAlpha: number;
+    glow: boolean;
+    glowColor: string;
+    glowRadius: number;
+    glowIntensity: number;
+    blur: number;
+  }
+): void => {
+  const totalWidth = tokenWidths.reduce((a, b) => a + b, 0) + gap * Math.max(0, tokens.length - 1);
+  const maskPadding = Math.ceil(Math.max(option.glowRadius * 2.8, metrics.height * 0.45, 18));
+  const mask = document.createElement('canvas');
+  mask.width = Math.ceil(totalWidth + maskPadding * 2);
+  mask.height = Math.ceil(metrics.height + maskPadding * 2);
+
+  const maskContext = mask.getContext('2d')!;
+  maskContext.fillStyle = '#ffffff';
+  maskContext.translate(maskPadding, maskPadding);
+
+  let cursor = 0;
+  tokens.forEach((token, index) => {
+    drawDotMatrixToken(maskContext, token, cursor, 0, metrics);
+    cursor += tokenWidths[index] + gap;
+  });
+
+  const glowMask = createTintedMask(mask, option.glowColor);
+  const coreMask = createTintedMask(mask, option.textColor);
+  const densityMask = createTintedMask(mask, '#6A5200');
+  const drawX = -maskPadding;
+  const drawY = baseline === 'top' ? -maskPadding : -metrics.height - maskPadding;
+  const intensity = Math.max(0, option.glowIntensity);
+
+  context.save();
+  context.imageSmoothingEnabled = false;
+
+  context.globalCompositeOperation = 'multiply';
+  context.globalAlpha = Math.min(0.42, option.textAlpha * 0.34);
+  context.filter = option.blur > 0 ? `blur(${Math.max(0.2, option.blur * 0.6)}px)` : 'none';
+  context.drawImage(densityMask, drawX, drawY);
+
+  if (option.glow && intensity > 0) {
+    const passes = [
+      { blur: option.glowRadius * 0.9, alpha: 0.2 * intensity },
+      { blur: option.glowRadius * 0.35, alpha: 0.36 * intensity },
+    ];
+
+    context.globalCompositeOperation = 'source-over';
+    passes.forEach((pass) => {
+      context.globalAlpha = Math.min(0.62, option.textAlpha * pass.alpha);
+      context.filter = pass.blur > 0 ? `blur(${pass.blur}px)` : 'none';
+      context.drawImage(glowMask, drawX, drawY);
+    });
+  }
+
+  context.globalCompositeOperation = 'source-over';
+  context.globalAlpha = option.textAlpha;
+  context.filter = option.blur > 0 ? `blur(${option.blur}px)` : 'none';
+  context.drawImage(coreMask, drawX, drawY);
+
+  context.restore();
+};
+
 const drawSegmentLampStamp = (
   context: CanvasRenderingContext2D,
   tokens: string[],
@@ -378,12 +506,16 @@ const formatDate = (date: Date, format: string): string => {
       return `${MM} ${DD} ${YY}`;
     case "DD M 'YY":
       return `${DD} ${M} '${YY}`;
+    case "'YY年 M月DD日":
+      return `'${YY}年 ${M}月${DD}日`;
     case 'YYYY MM DD':
       return `${YYYY} ${MM} ${DD}`;
     case 'YYYY/MM/DD':
       return `${YYYY}/${MM}/${DD}`;
     case 'YYYY-MM-DD':
       return `${YYYY}-${MM}-${DD}`;
+    case 'DD HH:MM':
+      return `${DD} ${HH}:${mm}`;
     case 'YY MM DD HH:MM':
       return `${YY} ${MM} ${DD} ${HH}:${mm}`;
     case 'DD MM YY HH:MM':
@@ -432,9 +564,15 @@ const DATABACK_FUNC: ThemeFunc = (photo: Photo, input: ThemeOptionInput, store: 
   context.textAlign = 'left';
 
   const useSegmentLamp = RENDERING_STYLE === 'segment-lamp';
+  const useDotMatrix = RENDERING_STYLE === 'dot-matrix';
   const segmentMetrics = createSegmentMetrics(FONT_SIZE);
+  const dotMatrixMetrics = createDotMatrixMetrics(FONT_SIZE);
   const tokens = text.split(' ');
-  const tokenWidths = tokens.map((tok) => (useSegmentLamp ? measureSegmentToken(tok, segmentMetrics) : context.measureText(tok).width));
+  const tokenWidths = tokens.map((tok) => {
+    if (useSegmentLamp) return measureSegmentToken(tok, segmentMetrics);
+    if (useDotMatrix) return measureDotMatrixToken(tok, dotMatrixMetrics);
+    return context.measureText(tok).width;
+  });
   const naturalSpace = context.measureText(' ').width;
   const gap = naturalSpace + SPACE_GAP;
   const totalWidth = tokenWidths.reduce((a, b) => a + b, 0) + gap * Math.max(0, tokens.length - 1);
@@ -491,6 +629,19 @@ const DATABACK_FUNC: ThemeFunc = (photo: Photo, input: ThemeOptionInput, store: 
       return;
     }
 
+    if (useDotMatrix) {
+      drawDotMatrixStamp(context, tokens, tokenWidths, gap, dotMatrixMetrics, baseline, {
+        textColor: TEXT_COLOR,
+        textAlpha: TEXT_ALPHA,
+        glow: GLOW,
+        glowColor: GLOW_COLOR,
+        glowRadius: GLOW_RADIUS,
+        glowIntensity: GLOW_INTENSITY,
+        blur: BLUR,
+      });
+      return;
+    }
+
     let cursor = 0;
     for (let i = 0; i < tokens.length; i++) {
       context.fillText(tokens[i], cursor, 0);
@@ -498,7 +649,7 @@ const DATABACK_FUNC: ThemeFunc = (photo: Photo, input: ThemeOptionInput, store: 
     }
   };
 
-  if (GLOW && !useSegmentLamp) {
+  if (GLOW && !useSegmentLamp && !useDotMatrix) {
     const intensity = Math.max(0, GLOW_INTENSITY);
     context.save();
     context.fillStyle = GLOW_COLOR;
@@ -526,7 +677,7 @@ const DATABACK_FUNC: ThemeFunc = (photo: Photo, input: ThemeOptionInput, store: 
   context.fillStyle = TEXT_COLOR;
   drawTokens();
 
-  if (GLOW && GLOW_INTENSITY > 0 && !useSegmentLamp) {
+  if (GLOW && GLOW_INTENSITY > 0 && !useSegmentLamp && !useDotMatrix) {
     context.save();
     context.globalCompositeOperation = 'lighter';
     context.globalAlpha = Math.min(0.35, TEXT_ALPHA * GLOW_INTENSITY * 0.16);
@@ -566,19 +717,39 @@ const DATABACK_PRESETS = [
     values: {
       DATE_FORMAT: "DD M 'YY",
       POSITION: 'bottom-right',
-      TEXT_COLOR: '#ffc72e',
+      TEXT_COLOR: '#eaff47',
       TEXT_ALPHA: 0.4,
       FONT_FAMILY: 'LCDDot',
       RENDERING_STYLE: 'font',
-      FONT_SIZE: 190,
-      SPACE_GAP: 40,
-      OFFSET_X: 450,
-      OFFSET_Y: 250,
+      FONT_SIZE: 211,
+      SPACE_GAP: 15,
+      OFFSET_X: 500,
+      OFFSET_Y: 300,
       GLOW: true,
       GLOW_COLOR: '#FF4500',
       GLOW_RADIUS: 5,
       GLOW_INTENSITY: 1,
-      BLUR: 5,
+      BLUR: 1.2,
+    },
+  },
+  {
+    name: '#3 Yellow Matrix',
+    values: {
+      DATE_FORMAT: "'YY年 M月DD日",
+      POSITION: 'bottom-right',
+      TEXT_COLOR: '#FFD72A',
+      TEXT_ALPHA: 0.95,
+      FONT_FAMILY: 'LCDDot',
+      RENDERING_STYLE: 'dot-matrix',
+      FONT_SIZE: 80,
+      SPACE_GAP: 34,
+      OFFSET_X: 700,
+      OFFSET_Y: 255,
+      GLOW: true,
+      GLOW_COLOR: '#FFC400',
+      GLOW_RADIUS: 5,
+      GLOW_INTENSITY: 1.1,
+      BLUR: 0.35,
     },
   },
 ];
