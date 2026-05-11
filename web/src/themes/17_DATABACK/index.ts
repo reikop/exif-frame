@@ -294,6 +294,7 @@ const drawSegmentLampStamp = (
   });
 
   const glowMask = createTintedMask(mask, option.glowColor);
+  const densityMask = createTintedMask(mask, '#8A0D00');
   const coreMask = createTintedMask(mask, option.textColor);
   const heatMask = createTintedMask(mask, '#FFE35A');
   const drawY = baseline === 'top' ? -maskPadding : -metrics.height - maskPadding;
@@ -302,6 +303,16 @@ const drawSegmentLampStamp = (
 
   context.save();
   context.imageSmoothingEnabled = true;
+
+  context.globalCompositeOperation = 'multiply';
+  context.globalAlpha = Math.min(0.46, option.textAlpha * (0.22 + intensity * 0.08));
+  context.filter = option.blur > 0 ? `blur(${Math.max(0.2, option.blur * 0.55)}px)` : 'none';
+  context.drawImage(densityMask, drawX, drawY);
+
+  context.globalCompositeOperation = 'source-over';
+  context.globalAlpha = Math.min(0.28, option.textAlpha * (0.12 + intensity * 0.04));
+  context.filter = 'none';
+  context.drawImage(densityMask, drawX, drawY);
 
   if (option.glow && intensity > 0) {
     const visibleHaloPasses = [
@@ -539,8 +550,8 @@ const DATABACK_PRESETS = [
       TEXT_ALPHA: 1,
       FONT_FAMILY: 'DSEG7Classic-Italic',
       RENDERING_STYLE: 'segment-lamp',
-      FONT_SIZE: 150,
-      SPACE_GAP: 145,
+      FONT_SIZE: 75,
+      SPACE_GAP: 85,
       OFFSET_X: 450,
       OFFSET_Y: 330,
       GLOW: true,
@@ -556,7 +567,7 @@ const DATABACK_PRESETS = [
       DATE_FORMAT: "DD M 'YY",
       POSITION: 'bottom-right',
       TEXT_COLOR: '#ffc72e',
-      TEXT_ALPHA: 0.15,
+      TEXT_ALPHA: 0.4,
       FONT_FAMILY: 'LCDDot',
       RENDERING_STYLE: 'font',
       FONT_SIZE: 190,
