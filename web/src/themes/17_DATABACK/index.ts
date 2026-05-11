@@ -55,6 +55,7 @@ const DATABACK_OPTIONS: ThemeOption[] = [
   { id: 'SHOW_INFO', type: 'boolean', default: false, description: 'show camera and exposure details below date' },
   { id: 'INFO_LINE_GAP', type: 'range-slider', default: 10, min: -200, max: 120, step: 1, description: 'px', visibleWhen: { id: 'SHOW_INFO', value: true, default: false } },
   { id: 'LEFT_INFO_STRIP', type: 'boolean', default: false, description: 'show exposure info on a left black strip' },
+  { id: 'PORTRAIT_REVERSE_LAYOUT', type: 'boolean', default: false, description: 'reverse strip/date placement on portrait output', visibleWhen: { id: 'LEFT_INFO_STRIP', value: true, default: false } },
 ];
 
 const LEFT_INFO_STYLE = {
@@ -682,17 +683,21 @@ const DATABACK_FUNC: ThemeFunc = (photo: Photo, input: ThemeOptionInput, store: 
   const SHOW_INFO = input.get('SHOW_INFO') as boolean;
   const INFO_LINE_GAP = input.get('INFO_LINE_GAP') as number;
   const LEFT_INFO_STRIP = input.get('LEFT_INFO_STRIP') as boolean;
-  const useBottomInfoStrip = LEFT_INFO_STRIP && isPortraitOutput(photo, store.ratio);
+  const PORTRAIT_REVERSE_LAYOUT = input.get('PORTRAIT_REVERSE_LAYOUT') as boolean;
+  const portraitOutput = isPortraitOutput(photo, store.ratio);
+  const usePortraitInfoStrip = LEFT_INFO_STRIP && portraitOutput;
+  const useTopInfoStrip = usePortraitInfoStrip && PORTRAIT_REVERSE_LAYOUT;
+  const useBottomInfoStrip = usePortraitInfoStrip && !PORTRAIT_REVERSE_LAYOUT;
 
   const canvas = sandbox(photo, {
     targetRatio: store.ratio,
     notCroppedMode: store.notCroppedMode,
     backgroundColor: '#000000',
     padding: {
-      top: 0,
+      top: useTopInfoStrip ? LEFT_INFO_STYLE.stripWidth : 0,
       right: 0,
       bottom: useBottomInfoStrip ? LEFT_INFO_STYLE.stripWidth : 0,
-      left: LEFT_INFO_STRIP && !useBottomInfoStrip ? LEFT_INFO_STYLE.stripWidth : 0,
+      left: LEFT_INFO_STRIP && !usePortraitInfoStrip ? LEFT_INFO_STYLE.stripWidth : 0,
     },
   });
 
@@ -777,7 +782,9 @@ const DATABACK_FUNC: ThemeFunc = (photo: Photo, input: ThemeOptionInput, store: 
     const totalWidth = tokenWidths[0];
 
     context.save();
-    if (useBottomInfoStrip) {
+    if (useTopInfoStrip) {
+      context.translate((canvas.width - totalWidth) / 2, Math.max(0, (LEFT_INFO_STYLE.stripWidth - LEFT_INFO_STYLE.fontSize) / 2));
+    } else if (useBottomInfoStrip) {
       context.translate((canvas.width + totalWidth) / 2, canvas.height - Math.max(0, (LEFT_INFO_STYLE.stripWidth - LEFT_INFO_STYLE.fontSize) / 2));
       context.rotate(Math.PI);
     } else {
@@ -806,8 +813,13 @@ const DATABACK_FUNC: ThemeFunc = (photo: Photo, input: ThemeOptionInput, store: 
   let baseline: CanvasTextBaseline = 'bottom';
 
   if (isPortrait) {
-    context.translate(canvas.width - OFFSET_Y, OFFSET_X + totalWidth);
-    context.rotate(-Math.PI / 2);
+    if (PORTRAIT_REVERSE_LAYOUT) {
+      context.translate(OFFSET_Y, canvas.height - OFFSET_X - totalWidth);
+      context.rotate(Math.PI / 2);
+    } else {
+      context.translate(canvas.width - OFFSET_Y, OFFSET_X + totalWidth);
+      context.rotate(-Math.PI / 2);
+    }
     baseline = 'bottom';
     context.textBaseline = baseline;
   } else {
@@ -840,7 +852,7 @@ const DATABACK_FUNC: ThemeFunc = (photo: Photo, input: ThemeOptionInput, store: 
     context.translate(startX, y);
   }
 
-  const alignRight = isPortrait || POSITION.endsWith('right');
+  const alignRight = (isPortrait && !PORTRAIT_REVERSE_LAYOUT) || POSITION.endsWith('right');
   const getLineX = (line: (typeof renderLines)[number]) => (alignRight ? totalWidth - line.totalWidth : 0);
   const getLineY = (lineIndex: number) => {
     if (lineIndex === 0) return 0;
@@ -939,6 +951,7 @@ const DATABACK_PRESETS = [
       SHOW_INFO: false,
       INFO_LINE_GAP: 10,
       LEFT_INFO_STRIP: true,
+      PORTRAIT_REVERSE_LAYOUT: false,
     },
   },
   {
@@ -963,6 +976,7 @@ const DATABACK_PRESETS = [
       SHOW_INFO: false,
       INFO_LINE_GAP: -120,
       LEFT_INFO_STRIP: false,
+      PORTRAIT_REVERSE_LAYOUT: false,
     },
   },
   {
@@ -987,6 +1001,7 @@ const DATABACK_PRESETS = [
       SHOW_INFO: false,
       INFO_LINE_GAP: 10,
       LEFT_INFO_STRIP: false,
+      PORTRAIT_REVERSE_LAYOUT: false,
     },
   },
 ];
