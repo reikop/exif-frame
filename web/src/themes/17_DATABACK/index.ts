@@ -186,9 +186,9 @@ const drawSevenSegment = (context: CanvasRenderingContext2D, segment: SevenSegme
   const inset = thickness * 0.9;
   const horizontalWidth = width - thickness * 2.08;
   const halfHeight = height / 2;
-  const topVerticalY = thickness + gap;
-  const bottomVerticalY = halfHeight + gap;
   const verticalHeight = halfHeight - thickness - gap * 1.15;
+  const bottomVerticalY = halfHeight + gap;
+  const topVerticalY = halfHeight - gap - verticalHeight;
 
   switch (segment) {
     case 'a':
@@ -255,7 +255,7 @@ const drawSegmentChar = (context: CanvasRenderingContext2D, char: string, x: num
   }
 
   if (char === '-') {
-    drawRoundedRect(context, x, y + height / 2 - thickness / 2, width * 0.38, thickness, radius);
+    drawRoundedRect(context, x - width * 0.25, y + height / 2 - thickness / 2, width * 0.38, thickness, radius);
     return;
   }
 
@@ -561,6 +561,7 @@ const drawSegmentLampStamp = (
   });
 
   const glowMask = createTintedMask(mask, option.glowColor);
+  const burnMask = createTintedMask(mask, '#1F0300');
   const densityMask = createTintedMask(mask, '#8A0D00');
   const coreMask = createTintedMask(mask, option.textColor);
   const heatMask = createTintedMask(mask, '#FFE35A');
@@ -572,9 +573,9 @@ const drawSegmentLampStamp = (
   context.imageSmoothingEnabled = true;
 
   context.globalCompositeOperation = 'multiply';
-  context.globalAlpha = Math.min(0.46, option.textAlpha * (0.22 + intensity * 0.08));
+  context.globalAlpha = Math.min(0.92, option.textAlpha * (0.55 + intensity * 0.16));
   context.filter = option.blur > 0 ? `blur(${Math.max(0.2, option.blur * 0.55)}px)` : 'none';
-  context.drawImage(densityMask, drawX, drawY);
+  context.drawImage(burnMask, drawX, drawY);
 
   context.globalCompositeOperation = 'source-over';
   context.globalAlpha = Math.min(0.28, option.textAlpha * (0.12 + intensity * 0.04));
@@ -607,6 +608,11 @@ const drawSegmentLampStamp = (
       context.drawImage(glowMask, drawX, drawY);
     });
   }
+
+  context.globalCompositeOperation = 'multiply';
+  context.globalAlpha = Math.min(0.95, option.textAlpha * (0.7 + intensity * 0.15));
+  context.filter = `blur(${Math.max(option.blur * 0.9, option.glowRadius * 0.06)}px)`;
+  context.drawImage(burnMask, drawX, drawY);
 
   context.globalCompositeOperation = 'source-over';
   context.globalAlpha = option.textAlpha;
