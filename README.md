@@ -25,12 +25,3 @@
 </p>
 
 [EXIF Frame](https://reikop.github.io/exif-frame/) is a web application that displays exif metadata in the frame by adding a white border frame to the image. Users can process the uploaded image and download the result. You can also manually edit the automatically acquired and displayed exif metadata later.
-
-## Contributors
-
-Special thanks to all the people who have contributed to this project:
-
-- [rhea-so](https://github.com/rhea-so)
-- [longfin](https://github.com/longfin)
-- [KelvinPuyam](https://github.com/KelvinPuyam)
-- [SJC08](https://github.com/SJC08)
