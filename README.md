@@ -2,16 +2,11 @@
   <img src="https://github.com/yurucam/exif-frame/assets/25793226/b9de5dc3-344a-4a3f-8cfb-ed4c82404cea" alt="album and camera" width=200px />
 </p>
 
-<h1 align="center"><a href="https://exif-frame.yuru.cam">EXIF Frame</a></h1>
+<h1 align="center"><a href="https://reikop.github.io/exif-frame/">EXIF Frame</a></h1>
 
 <p align="center">
   📸 → 🖼️ with EXIF metadata
 </p>
-
-<p align="center">
-  <a href="https://play.google.com/store/apps/details?id=com.yurucam.exif"><img src="https://github.com/yurucam/exif-frame/assets/25793226/9be351a3-6c57-4033-a9e4-d95595a26dcd" width="200px" /></a>
-  <a href="https://apps.apple.com/kr/app/exif-%ED%94%84%EB%A0%88%EC%9E%84/id6494989030"><img src="https://github.com/yurucam/exif-frame/assets/25793226/54f6d50f-e5f7-4b46-8bb0-5a646fce0dca" width="200px" /></a>
-<p/>
 
 <p align="center">
   <img src="https://github.com/yurucam/exif-frame/assets/25793226/9c992235-709b-46a6-9986-64f9bf7af288" width="400px" />
@@ -22,7 +17,14 @@
 
 > This project is a fork of [jeonghyeon-net/exif-frame](https://github.com/jeonghyeon-net/exif-frame) with databack functionality added.
 
-[EXIF Frame](https://exif-frame.yuru.cam) is a web application that displays exif metadata in the frame by adding a white border frame to the image. Users can process the uploaded image and download the result. You can also manually edit the automatically acquired and displayed exif metadata later.
+### Databack samples
+
+<p align="center">
+  <img src="web/public/preview2.jpg" width="400px" alt="databack sample 1" />
+  <img src="web/public/preview3.jpg" width="400px" alt="databack sample 2" />
+</p>
+
+[EXIF Frame](https://reikop.github.io/exif-frame/) is a web application that displays exif metadata in the frame by adding a white border frame to the image. Users can process the uploaded image and download the result. You can also manually edit the automatically acquired and displayed exif metadata later.
 
 ## Contributors
 
