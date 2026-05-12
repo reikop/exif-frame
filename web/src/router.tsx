@@ -28,7 +28,7 @@ const Root = () => {
 
 const Router = () => {
   return (
-    <BrowserRouter>
+    <BrowserRouter basename={import.meta.env.BASE_URL}>
       <Routes>
         <Route path="/" element={<Root />} />
         <Route path="/privacy_policy.html" element={<PrivacyPolicyPage />} />
