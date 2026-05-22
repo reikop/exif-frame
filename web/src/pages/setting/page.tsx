@@ -23,7 +23,6 @@ import RatioListItem from './components/ratio.list-item';
 import TermAndConditionsListItem from './components/term-and-conditions.list-item';
 import PrivacyPolicyListItem from './components/privacy-policy.list-item';
 import { useStore } from '../../store';
-import SponsorsListItem from './components/sponsors.list-item';
 import FocalLengthRatioModeListItem from './components/focal-length-ratio-mode.list-item';
 import LabListItem from './components/lab.list-item';
 import DateNotationListItem from './components/date-notation.list-item';
@@ -32,8 +31,8 @@ import OverrideMetadataListItem from './components/override-metadata.list-item';
 import OverrideMetadataPopover from './components/override-metadata.popover';
 import CreateOverrideMetadataListItem from './components/create-override-metadata.list-item';
 import MaintainExifListItem from './components/maintain-exif.list-item';
-import BetaListItem from './components/beta.list-item';
 import Loading from '../convert/components/loading';
+import OriginalAuthorListItem from './components/original-author.list-item';
 
 const ExportSettingsPage = () => {
   const { t } = useTranslation();
@@ -83,10 +82,9 @@ const ExportSettingsPage = () => {
       </List>
 
       <List strongIos inset>
-        <SponsorsListItem />
         <LabListItem />
         <CurrentVersionListItem />
-        <BetaListItem />
+        <OriginalAuthorListItem />
       </List>
 
       <Tabbar labels={true} icons={true} className="left-0 bottom-0 fixed">

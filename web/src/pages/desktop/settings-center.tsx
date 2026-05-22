@@ -17,14 +17,13 @@ import DisableExposureMeterListItem from '../setting/components/disable-exposure
 import RatioListItem from '../setting/components/ratio.list-item';
 import TermAndConditionsListItem from '../setting/components/term-and-conditions.list-item';
 import PrivacyPolicyListItem from '../setting/components/privacy-policy.list-item';
-import SponsorsListItem from '../setting/components/sponsors.list-item';
 import FocalLengthRatioModeListItem from '../setting/components/focal-length-ratio-mode.list-item';
 import LabListItem from '../setting/components/lab.list-item';
 import DateNotationListItem from '../setting/components/date-notation.list-item';
 import OverrideMetadataListItem from '../setting/components/override-metadata.list-item';
 import CreateOverrideMetadataListItem from '../setting/components/create-override-metadata.list-item';
 import MaintainExifListItem from '../setting/components/maintain-exif.list-item';
-import BetaListItem from '../setting/components/beta.list-item';
+import OriginalAuthorListItem from '../setting/components/original-author.list-item';
 
 const SettingsCenter = () => {
   const { t } = useTranslation();
@@ -73,10 +72,9 @@ const SettingsCenter = () => {
       </List>
 
       <List strongIos inset>
-        <SponsorsListItem />
         <LabListItem />
         <CurrentVersionListItem />
-        <BetaListItem />
+        <OriginalAuthorListItem />
       </List>
     </div>
   );

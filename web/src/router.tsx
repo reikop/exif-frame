@@ -5,7 +5,6 @@ import ExportSettingsPage from './pages/setting/page';
 import ThemeSettingsPage from './pages/theme/page';
 import { useStore } from './store';
 import FramePage from './pages/convert/page';
-import SponsorsPage from './pages/sponsors';
 import LabPage from './pages/lab/page';
 import MetadataPage from './pages/metadata/page';
 import DesktopShell from './pages/desktop/shell';
@@ -33,7 +32,6 @@ const Router = () => {
         <Route path="/" element={<Root />} />
         <Route path="/privacy_policy.html" element={<PrivacyPolicyPage />} />
         <Route path="/term_and_conditions.html" element={<TermAndConditionsPage />} />
-        <Route path="/sponsors" element={<SponsorsPage />} />
         <Route path="/lab" element={<LabPage />} />
         <Route path="/metadata" element={<MetadataPage />} />
       </Routes>
