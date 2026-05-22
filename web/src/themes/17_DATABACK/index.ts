@@ -612,7 +612,7 @@ const drawDotMatrixStamp = (
       context.drawImage(coreMask, drawX + pass.x, drawY + pass.y);
     });
     context.globalAlpha = option.textAlpha * 0.72;
-    context.filter = 'none';
+    context.filter = option.blur > 0 ? `blur(${Math.max(0.1, option.blur * 0.6)}px)` : 'none';
     context.drawImage(coreMask, drawX, drawY);
 
     if (option.centerHole) {
