@@ -37,6 +37,9 @@ const DATABACK_OPTIONS: ThemeOption[] = [
   { id: 'TEXT_ALPHA', type: 'range-slider', default: 1, min: 0, max: 1, step: 0.01, description: '0 - 1' },
   { id: 'RENDERING_STYLE', type: 'select', options: ['segment-lamp', 'dot-matrix', 'font'], default: 'segment-lamp', description: 'segment-lamp matches film databack LEDs' },
   { id: 'DOT_MATRIX_FONT', type: 'select', options: DOT_MATRIX_FONT_NAMES, default: 'default', description: 'dot matrix glyph set', visibleWhen: { id: 'RENDERING_STYLE', value: 'dot-matrix', default: 'segment-lamp' } },
+  { id: 'DOT_CENTER_HOLE', type: 'boolean', default: false, description: 'punch small holes in dot centers', visibleWhen: { id: 'RENDERING_STYLE', value: 'dot-matrix', default: 'segment-lamp' } },
+  { id: 'DOT_SIZE', type: 'range-slider', default: 1, min: 0.25, max: 1.2, step: 0.01, description: 'dot size scale', visibleWhen: { id: 'RENDERING_STYLE', value: 'dot-matrix', default: 'segment-lamp' } },
+  { id: 'DOT_SPACING', type: 'range-slider', default: 1, min: 0.8, max: 1.45, step: 0.01, description: 'dot spacing scale', visibleWhen: { id: 'RENDERING_STYLE', value: 'dot-matrix', default: 'segment-lamp' } },
   { id: 'FONT_SIZE', type: 'range-slider', default: 150, min: 20, max: 400, step: 1, description: 'px' },
   { id: 'SPACE_GAP', type: 'range-slider', default: 145, min: -50, max: 260, step: 1, description: 'extra px added on spaces only' },
   { id: 'OFFSET_X', type: 'range-slider', default: 450, min: 0, max: 1000, step: 5, description: 'horizontal distance from edge (px)' },
@@ -46,6 +49,7 @@ const DATABACK_OPTIONS: ThemeOption[] = [
   { id: 'GLOW_RADIUS', type: 'range-slider', default: 64, min: 0, max: 160, step: 0.5, description: 'glow blur radius (px)', visibleWhen: { id: 'GLOW', value: true, default: true } },
   { id: 'GLOW_INTENSITY', type: 'range-slider', default: 2.35, min: 0, max: 4, step: 0.05, description: 'bloom strength', visibleWhen: { id: 'GLOW', value: true, default: true } },
   { id: 'BLUR', type: 'range-slider', default: 2.2, min: 0, max: 16, step: 0.1, description: 'text blur (px, decimal)' },
+  { id: 'DEFOCUS', type: 'range-slider', default: 0, min: 0, max: 8, step: 0.1, description: 'slight focus offset (px)', visibleWhen: { id: 'RENDERING_STYLE', value: 'dot-matrix', default: 'segment-lamp' } },
   { id: 'SHOW_DATE', type: 'boolean', default: true, description: 'show date stamp' },
   { id: 'SHOW_INFO', type: 'boolean', default: false, description: 'show camera and exposure details below date' },
   { id: 'INFO_LINE_GAP', type: 'range-slider', default: 10, min: -200, max: 120, step: 1, description: 'px', visibleWhen: { id: 'SHOW_INFO', value: true, default: false } },
@@ -410,20 +414,23 @@ const DOT_MATRIX_GLYPH_SETS: Record<string, DotMatrixGlyphs> = {
 
 type DotMatrixMetrics = {
   dot: number;
+  cell: number;
   pitch: number;
   height: number;
   radius: number;
   glyphGap: number;
 };
 
-const createDotMatrixMetrics = (fontSize: number): DotMatrixMetrics => {
-  const dot = fontSize / 9.7;
+const createDotMatrixMetrics = (fontSize: number, dotSize = 1, dotSpacing = 1): DotMatrixMetrics => {
+  const cell = fontSize / 9.7;
+  const dot = cell * dotSize;
   return {
     dot,
-    pitch: dot * 1.45,
+    cell,
+    pitch: cell * 1.45 * dotSpacing,
     height: fontSize,
     radius: dot * 0.22,
-    glyphGap: dot * 1.2,
+    glyphGap: cell * 1.2 * dotSpacing,
   };
 };
 
@@ -436,22 +443,71 @@ const measureDotMatrixChar = (char: string, metrics: DotMatrixMetrics, glyphs: D
 const measureDotMatrixToken = (token: string, metrics: DotMatrixMetrics, glyphs: DotMatrixGlyphs): number =>
   Array.from(token).reduce((width, char) => width + measureDotMatrixChar(char, metrics, glyphs), 0);
 
-const drawDotMatrixChar = (context: CanvasRenderingContext2D, char: string, x: number, y: number, metrics: DotMatrixMetrics, glyphs: DotMatrixGlyphs): void => {
+const dotMatrixNoise = (...values: number[]): number => {
+  const seed = values.reduce((acc, value, index) => acc + Math.sin(value * (12.9898 + index * 8.233)) * 43758.5453, 0);
+  return seed - Math.floor(seed);
+};
+
+const drawDotMatrixDot = (context: CanvasRenderingContext2D, x: number, y: number, metrics: DotMatrixMetrics, centerHole: boolean): void => {
+  const sizeNoise = centerHole ? dotMatrixNoise(x, y, metrics.dot) : 1;
+  const alphaNoise = centerHole ? dotMatrixNoise(y, metrics.dot, x) : 1;
+  const shiftNoiseX = centerHole ? dotMatrixNoise(x, metrics.dot, y) - 0.5 : 0;
+  const shiftNoiseY = centerHole ? dotMatrixNoise(y, x, metrics.dot) - 0.5 : 0;
+  const dotSize = centerHole ? metrics.dot * (0.74 + sizeNoise * 0.12) : metrics.dot;
+  const dotInset = (metrics.cell - dotSize) / 2;
+  const dotX = x + dotInset + shiftNoiseX * metrics.cell * 0.13;
+  const dotY = y + dotInset + shiftNoiseY * metrics.cell * 0.1;
+
+  context.save();
+  context.globalAlpha *= centerHole ? 0.72 + alphaNoise * 0.28 : 1;
+  drawRoundedRect(context, dotX, dotY, dotSize, dotSize, centerHole ? dotSize * 0.18 : metrics.radius);
+  context.restore();
+
+  if (!centerHole) return;
+
+  const holeSize = dotSize * (0.2 + dotMatrixNoise(dotX, dotY, dotSize) * 0.08);
+  const holeInset = (dotSize - holeSize) / 2;
+  context.save();
+  context.globalCompositeOperation = 'destination-out';
+  context.globalAlpha = 0.72;
+  context.beginPath();
+  roundedRectPath(context, dotX + holeInset, dotY + holeInset, holeSize, holeSize, holeSize * 0.2);
+  context.fill();
+  context.restore();
+};
+
+const drawDotMatrixChar = (
+  context: CanvasRenderingContext2D,
+  char: string,
+  x: number,
+  y: number,
+  metrics: DotMatrixMetrics,
+  glyphs: DotMatrixGlyphs,
+  centerHole: boolean
+): void => {
   const glyph = glyphs[char];
   if (!glyph) return;
 
   glyph.forEach((row, rowIndex) => {
     Array.from(row).forEach((cell, columnIndex) => {
       if (cell !== '1') return;
-      drawRoundedRect(context, x + columnIndex * metrics.pitch, y + rowIndex * metrics.pitch, metrics.dot, metrics.dot, metrics.radius);
+      drawDotMatrixDot(context, x + columnIndex * metrics.pitch, y + rowIndex * metrics.pitch, metrics, centerHole);
     });
   });
 };
 
-const drawDotMatrixToken = (context: CanvasRenderingContext2D, token: string, x: number, y: number, metrics: DotMatrixMetrics, glyphs: DotMatrixGlyphs): void => {
+const drawDotMatrixToken = (
+  context: CanvasRenderingContext2D,
+  token: string,
+  x: number,
+  y: number,
+  metrics: DotMatrixMetrics,
+  glyphs: DotMatrixGlyphs,
+  centerHole: boolean
+): void => {
   let cursor = x;
   Array.from(token).forEach((char) => {
-    drawDotMatrixChar(context, char, cursor, y, metrics, glyphs);
+    drawDotMatrixChar(context, char, cursor, y, metrics, glyphs, centerHole);
     cursor += measureDotMatrixChar(char, metrics, glyphs);
   });
 };
@@ -472,10 +528,12 @@ const drawDotMatrixStamp = (
     glowRadius: number;
     glowIntensity: number;
     blur: number;
+    defocus: number;
+    centerHole: boolean;
   }
 ): void => {
   const totalWidth = tokenWidths.reduce((a, b) => a + b, 0) + gap * Math.max(0, tokens.length - 1);
-  const maskPadding = Math.ceil(Math.max(option.glowRadius * 2.8, metrics.height * 0.45, 18));
+  const maskPadding = Math.ceil(Math.max(option.glowRadius * 2.8, metrics.height * 0.45, option.defocus * 4, 18));
   const mask = document.createElement('canvas');
   mask.width = Math.ceil(totalWidth + maskPadding * 2);
   mask.height = Math.ceil(metrics.height + maskPadding * 2);
@@ -486,13 +544,16 @@ const drawDotMatrixStamp = (
 
   let cursor = 0;
   tokens.forEach((token, index) => {
-    drawDotMatrixToken(maskContext, token, cursor, 0, metrics, glyphs);
+    drawDotMatrixToken(maskContext, token, cursor, 0, metrics, glyphs, option.centerHole);
     cursor += tokenWidths[index] + gap;
   });
 
   const glowMask = createTintedMask(mask, option.glowColor);
   const coreMask = createTintedMask(mask, option.textColor);
-  const densityMask = createTintedMask(mask, '#6A5200');
+  const densityMask = createTintedMask(mask, option.centerHole ? '#7C6800' : '#6A5200');
+  const burnMask = createTintedMask(mask, '#2E2400');
+  const edgeMask = createTintedMask(mask, '#B2A500');
+  const warmthMask = createTintedMask(mask, '#FF7C00');
   const drawX = -maskPadding;
   const drawY = baseline === 'top' ? -maskPadding : -metrics.height - maskPadding;
   const intensity = Math.max(0, option.glowIntensity);
@@ -500,9 +561,14 @@ const drawDotMatrixStamp = (
   context.save();
   context.imageSmoothingEnabled = false;
 
+  context.globalCompositeOperation = option.centerHole ? 'color-burn' : 'multiply';
+  context.globalAlpha = Math.min(0.46, option.textAlpha * (option.centerHole ? 0.36 : 0.28));
+  context.filter = option.blur > 0 ? `blur(${Math.max(0.2, option.blur * 0.8)}px)` : 'none';
+  context.drawImage(burnMask, drawX, drawY);
+
   context.globalCompositeOperation = 'multiply';
-  context.globalAlpha = Math.min(0.42, option.textAlpha * 0.34);
-  context.filter = option.blur > 0 ? `blur(${Math.max(0.2, option.blur * 0.6)}px)` : 'none';
+  context.globalAlpha = Math.min(0.34, option.textAlpha * 0.24);
+  context.filter = option.blur > 0 ? `blur(${Math.max(0.2, option.blur * 0.45)}px)` : 'none';
   context.drawImage(densityMask, drawX, drawY);
 
   if (option.glow && intensity > 0) {
@@ -511,18 +577,55 @@ const drawDotMatrixStamp = (
       { blur: option.glowRadius * 0.35, alpha: 0.36 * intensity },
     ];
 
-    context.globalCompositeOperation = 'source-over';
+    context.globalCompositeOperation = option.centerHole ? 'screen' : 'source-over';
     passes.forEach((pass) => {
-      context.globalAlpha = Math.min(0.62, option.textAlpha * pass.alpha);
+      context.globalAlpha = Math.min(option.centerHole ? 0.44 : 0.62, option.textAlpha * pass.alpha);
       context.filter = pass.blur > 0 ? `blur(${pass.blur}px)` : 'none';
       context.drawImage(glowMask, drawX, drawY);
     });
   }
 
+  if (option.centerHole) {
+    context.globalCompositeOperation = 'source-over';
+    context.globalAlpha = Math.min(0.18, option.textAlpha * 0.16);
+    context.filter = `blur(${Math.max(1.2, option.defocus * 1.2)}px)`;
+    context.drawImage(edgeMask, drawX, drawY);
+
+    context.globalCompositeOperation = 'screen';
+    context.globalAlpha = Math.min(0.24, option.textAlpha * intensity * 0.06);
+    context.filter = `blur(${Math.max(1.8, option.defocus * 1.7)}px)`;
+    context.drawImage(warmthMask, drawX - option.defocus * 0.25, drawY + option.defocus * 0.7);
+  }
+
   context.globalCompositeOperation = 'source-over';
-  context.globalAlpha = option.textAlpha;
-  context.filter = option.blur > 0 ? `blur(${option.blur}px)` : 'none';
-  context.drawImage(coreMask, drawX, drawY);
+  if (option.defocus > 0) {
+    const offset = option.defocus;
+    const defocusPasses = [
+      { x: -offset * 0.7, y: -offset * 0.12, alpha: 0.24 },
+      { x: offset * 0.52, y: offset * 0.28, alpha: 0.22 },
+      { x: offset * 0.08, y: -offset * 0.62, alpha: 0.16 },
+    ];
+
+    context.filter = option.blur > 0 ? `blur(${Math.max(0.1, option.blur * 0.35)}px)` : 'none';
+    defocusPasses.forEach((pass) => {
+      context.globalAlpha = option.textAlpha * pass.alpha;
+      context.drawImage(coreMask, drawX + pass.x, drawY + pass.y);
+    });
+    context.globalAlpha = option.textAlpha * 0.72;
+    context.filter = 'none';
+    context.drawImage(coreMask, drawX, drawY);
+
+    if (option.centerHole) {
+      context.globalCompositeOperation = 'screen';
+      context.globalAlpha = Math.min(0.2, option.textAlpha * 0.16);
+      context.filter = `blur(${Math.max(0.8, option.defocus * 0.55)}px)`;
+      context.drawImage(warmthMask, drawX, drawY + option.defocus * 0.35);
+    }
+  } else {
+    context.globalAlpha = option.textAlpha;
+    context.filter = option.blur > 0 ? `blur(${option.blur}px)` : 'none';
+    context.drawImage(coreMask, drawX, drawY);
+  }
 
   context.restore();
 };
@@ -710,6 +813,9 @@ const DATABACK_FUNC: ThemeFunc = (photo: Photo, input: ThemeOptionInput, store: 
   const FONT_FAMILY = ((input.get('FONT_FAMILY') as string | undefined) || 'DSEG7Classic-Italic').trim();
   const RENDERING_STYLE = (input.get('RENDERING_STYLE') as string).trim();
   const DOT_MATRIX_FONT = (input.get('DOT_MATRIX_FONT') as string).trim();
+  const DOT_CENTER_HOLE = ((input.get('DOT_CENTER_HOLE') as boolean | undefined) ?? false);
+  const DOT_SIZE = (input.get('DOT_SIZE') as number | undefined) ?? 1;
+  const DOT_SPACING = (input.get('DOT_SPACING') as number | undefined) ?? 1;
   const FONT_SIZE = input.get('FONT_SIZE') as number;
   const SPACE_GAP = input.get('SPACE_GAP') as number;
   const OFFSET_X = input.get('OFFSET_X') as number;
@@ -719,6 +825,7 @@ const DATABACK_FUNC: ThemeFunc = (photo: Photo, input: ThemeOptionInput, store: 
   const GLOW_RADIUS = input.get('GLOW_RADIUS') as number;
   const GLOW_INTENSITY = input.get('GLOW_INTENSITY') as number;
   const BLUR = input.get('BLUR') as number;
+  const DEFOCUS = (input.get('DEFOCUS') as number | undefined) ?? 0;
   const SHOW_DATE = input.get('SHOW_DATE') as boolean;
   const SHOW_INFO = input.get('SHOW_INFO') as boolean;
   const INFO_LINE_GAP = input.get('INFO_LINE_GAP') as number;
@@ -766,7 +873,7 @@ const DATABACK_FUNC: ThemeFunc = (photo: Photo, input: ThemeOptionInput, store: 
     const lineUseSegmentLamp = useSegmentLamp;
     const lineUseDotMatrix = useDotMatrix;
     const segmentMetrics = createSegmentMetrics(line.fontSize);
-    const dotMatrixMetrics = createDotMatrixMetrics(line.fontSize);
+    const dotMatrixMetrics = createDotMatrixMetrics(line.fontSize, DOT_SIZE, DOT_SPACING);
     const tokens = line.splitSpaces ? line.text.split(' ') : [line.text];
     const naturalSpace = context.measureText(' ').width;
     const gap = lineIndex === 0 ? naturalSpace + line.spaceGap : 0;
@@ -812,6 +919,8 @@ const DATABACK_FUNC: ThemeFunc = (photo: Photo, input: ThemeOptionInput, store: 
         glowRadius: GLOW_RADIUS,
         glowIntensity: GLOW_INTENSITY,
         blur: BLUR,
+        defocus: DEFOCUS,
+        centerHole: DOT_CENTER_HOLE,
       });
     }
   };
@@ -978,6 +1087,9 @@ const DATABACK_PRESETS = [
       TEXT_ALPHA: 1,
       RENDERING_STYLE: 'segment-lamp',
       DOT_MATRIX_FONT: 'default',
+      DOT_CENTER_HOLE: false,
+      DOT_SIZE: 1,
+      DOT_SPACING: 1,
       FONT_SIZE: 75,
       SPACE_GAP: 85,
       OFFSET_X: 450,
@@ -987,6 +1099,7 @@ const DATABACK_PRESETS = [
       GLOW_RADIUS: 64,
       GLOW_INTENSITY: 2.35,
       BLUR: 2.2,
+      DEFOCUS: 0,
       SHOW_DATE: true,
       SHOW_INFO: false,
       INFO_LINE_GAP: 10,
@@ -999,19 +1112,23 @@ const DATABACK_PRESETS = [
     values: {
       DATE_FORMAT: "DD M 'YY",
       POSITION: 'bottom-right',
-      TEXT_COLOR: '#fbf309',
-      TEXT_ALPHA: 0.95,
+      TEXT_COLOR: '#FFC21C',
+      TEXT_ALPHA: 0.8,
       RENDERING_STYLE: 'dot-matrix',
       DOT_MATRIX_FONT: 'af600',
+      DOT_CENTER_HOLE: true,
+      DOT_SIZE: 1.2,
+      DOT_SPACING: 0.8,
       FONT_SIZE: 115,
-      SPACE_GAP: 55,
-      OFFSET_X: 280,
-      OFFSET_Y: 280,
+      SPACE_GAP: 33,
+      OFFSET_X: 500,
+      OFFSET_Y: 230,
       GLOW: true,
-      GLOW_COLOR: '#ffde05',
-      GLOW_RADIUS: 9.5,
-      GLOW_INTENSITY: 4,
-      BLUR: 1,
+      GLOW_COLOR: '#D9A000',
+      GLOW_RADIUS: 11,
+      GLOW_INTENSITY: 2.55,
+      BLUR: 0.45,
+      DEFOCUS: 2.9,
       SHOW_DATE: true,
       SHOW_INFO: false,
       INFO_LINE_GAP: 25,
@@ -1028,6 +1145,9 @@ const DATABACK_PRESETS = [
       TEXT_ALPHA: 0.95,
       RENDERING_STYLE: 'dot-matrix',
       DOT_MATRIX_FONT: 'default',
+      DOT_CENTER_HOLE: false,
+      DOT_SIZE: 1.2,
+      DOT_SPACING: 0.98,
       FONT_SIZE: 80,
       SPACE_GAP: 34,
       OFFSET_X: 700,
@@ -1036,7 +1156,8 @@ const DATABACK_PRESETS = [
       GLOW_COLOR: '#FFC400',
       GLOW_RADIUS: 5,
       GLOW_INTENSITY: 1.1,
-      BLUR: 0.35,
+      BLUR: 0.6,
+      DEFOCUS: 8,
       SHOW_DATE: true,
       SHOW_INFO: false,
       INFO_LINE_GAP: 10,
